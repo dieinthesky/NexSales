@@ -17,6 +17,7 @@ const path = require('node:path')
 const { spawn } = require('node:child_process')
 const { randomBytes } = require('node:crypto')
 const http = require('node:http')
+const { setupAutoUpdater } = require('./auto-update.cjs')
 
 const NEXT_PORT = 3099
 const APP_URL = `http://127.0.0.1:${NEXT_PORT}`
@@ -214,6 +215,7 @@ app.whenReady().then(async () => {
   try {
     await startNextServer()
     createWindow()
+    setupAutoUpdater(() => mainWindow)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -222,7 +224,7 @@ app.whenReady().then(async () => {
     const msg = err instanceof Error ? err.message : String(err)
     dialog.showErrorBox(
       'Falha ao iniciar CaixaDoBairro',
-      `Não foi possível iniciar o servidor local.\n\n${msg}\n\nVerifique se o Node.js está instalado e tente novamente.`,
+      `Não foi possível iniciar o servidor local.\n\n${msg}`,
     )
     app.quit()
   }

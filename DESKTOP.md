@@ -42,3 +42,15 @@ Se quiser forçar a URL do botão:
 3. Abre **CaixaDoBairro** → login online na 1ª vez  
 
 Depois disso, o ícone na área de trabalho abre o PDV sem precisar do navegador.
+
+## 6) Atualização automática
+
+A partir da build com `electron-updater`:
+
+1. Você gera um novo Release (Actions → **Run workflow**) — a versão sobe sozinha (`0.1.N`)
+2. No PC do caixa, ao abrir o app **com internet**, ele baixa a atualização em segundo plano
+3. Aparece: **Reiniciar agora** / **Depois**
+4. Ao reiniciar, instala a versão nova — **não precisa baixar o .exe na mão**
+
+A 1ª instalação ainda é pelo instalador. Updates seguintes são automáticos.
+O Release precisa ter o `.exe` **e** o arquivo `latest.yml` (o workflow já publica os dois).

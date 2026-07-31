@@ -1,5 +1,5 @@
-# Gera o instalador Windows (CaixaDoBairro-Instalador.exe) e publica no Releases.
-# Rode manualmente: Actions → Build desktop Windows → Run workflow
+# Gera o instalador Windows + metadados de auto-update (latest.yml).
+# Rode: Actions → Build desktop Windows → Run workflow
 
 name: Build desktop Windows
 
@@ -25,20 +25,29 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          # LTS com prebuilds estáveis; evita compile no npm ci
           node-version: '20.18.1'
           cache: 'npm'
 
-      # Compilador C++ para better-sqlite3 / electron-rebuild
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
       - name: Install dependencies
-        # ignore-scripts: não compila native addons no install (VS 18 no runner
-        # quebra o node-gyp). O rebuild do Electron vem no passo seguinte.
-        run: npm ci --ignore-scripts
+        # npm install (não ci): permite electron-updater novo sem lock local
+        run: npm install --ignore-scripts
+
+      - name: Bump app version for this build
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" == desktop-v* ]]; then
+            VERSION="${GITHUB_REF_NAME#desktop-v}"
+          else
+            VERSION="0.1.${GITHUB_RUN_NUMBER}"
+          fi
+          npm version "$VERSION" --no-git-tag-version --allow-same-version
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Building CaixaDoBairro v$VERSION"
 
       - name: Check required secrets
         shell: bash
@@ -48,7 +57,6 @@ jobs:
         run: |
           if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
             echo "Faltam secrets: NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY"
-            echo "Settings → Secrets and variables → Actions"
             exit 1
           fi
 
@@ -72,21 +80,28 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --win
+        run: npx electron-builder --win --publish never
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: CaixaDoBairro-Instalador
-          path: instalador/CaixaDoBairro-Instalador.exe
+          path: |
+            instalador/CaixaDoBairro-Instalador.exe
+            instalador/latest.yml
+            instalador/*.blockmap
           if-no-files-found: error
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('desktop-v0.1.{0}', github.run_number) }}
-          name: CaixaDoBairro Desktop ${{ github.ref_type == 'tag' && github.ref_name || format('v0.1.{0}', github.run_number) }}
-          files: instalador/CaixaDoBairro-Instalador.exe
+          tag_name: desktop-v${{ env.APP_VERSION }}
+          name: CaixaDoBairro Desktop v${{ env.APP_VERSION }}
+          files: |
+            instalador/CaixaDoBairro-Instalador.exe
+            instalador/latest.yml
+            instalador/*.blockmap
           generate_release_notes: true
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

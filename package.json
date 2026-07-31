@@ -34,6 +34,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.2.1",
     "dexie": "^4.4.3",
+    "electron-updater": "^6.6.2",
     "framer-motion": "^12.40.0",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
@@ -81,13 +82,36 @@
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/electron-updater/**/*",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/fs-extra/**/*",
+      "node_modules/jsonfile/**/*",
+      "node_modules/universalify/**/*",
+      "node_modules/graceful-fs/**/*",
+      "node_modules/js-yaml/**/*",
+      "node_modules/argparse/**/*",
+      "node_modules/lazy-val/**/*",
+      "node_modules/lodash.escaperegexp/**/*",
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/semver/**/*",
+      "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/sax/**/*",
+      "node_modules/debug/**/*",
+      "node_modules/ms/**/*"
     ],
     "asar": true,
     "asarUnpack": [
       "node_modules/better-sqlite3/**/*",
       "node_modules/bindings/**/*",
       "node_modules/file-uri-to-path/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dieinthesky",
+        "repo": "NexSales"
+      }
     ],
     "win": {
       "target": [
