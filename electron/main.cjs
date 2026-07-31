@@ -61,17 +61,17 @@ function getProjectRoot() {
 }
 
 /**
- * Next standalone must live OUTSIDE the asar (asarUnpack) — a child process
- * started with ELECTRON_RUN_AS_NODE cannot execute server.js from inside asar.
+ * Next standalone lives in extraResources (`resources/standalone`) so Node can
+ * resolve `next` and native addons. Running from inside asar breaks require().
  */
 function getStandaloneDir() {
   if (!app.isPackaged) {
     return path.join(__dirname, '..', '.next', 'standalone')
   }
   const candidates = [
+    path.join(process.resourcesPath, 'standalone'),
     path.join(process.resourcesPath, 'app.asar.unpacked', '.next', 'standalone'),
     path.join(process.resourcesPath, 'app', '.next', 'standalone'),
-    path.join(app.getAppPath(), '.next', 'standalone'),
   ]
   for (const dir of candidates) {
     if (fss.existsSync(path.join(dir, 'server.js'))) return dir

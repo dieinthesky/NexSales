@@ -81,7 +81,6 @@
     "artifactName": "CaixaDoBairro-Instalador.${ext}",
     "files": [
       "electron/**/*",
-      ".next/standalone/**/*",
       "package.json",
       "node_modules/electron-updater/**/*",
       "node_modules/builder-util-runtime/**/*",
@@ -100,9 +99,15 @@
       "node_modules/debug/**/*",
       "node_modules/ms/**/*"
     ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "standalone",
+        "filter": ["**/*"]
+      }
+    ],
     "asar": true,
     "asarUnpack": [
-      ".next/standalone/**/*",
       "node_modules/better-sqlite3/**/*",
       "node_modules/bindings/**/*",
       "node_modules/file-uri-to-path/**/*"
