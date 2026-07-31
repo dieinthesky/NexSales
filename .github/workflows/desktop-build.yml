@@ -25,11 +25,20 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # LTS com prebuilds estáveis; evita compile no npm ci
+          node-version: '20.18.1'
           cache: 'npm'
 
+      # Compilador C++ para better-sqlite3 / electron-rebuild
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install dependencies
-        run: npm ci
+        # ignore-scripts: não compila native addons no install (VS 18 no runner
+        # quebra o node-gyp). O rebuild do Electron vem no passo seguinte.
+        run: npm ci --ignore-scripts
 
       - name: Check required secrets
         shell: bash
@@ -43,15 +52,27 @@ jobs:
             exit 1
           fi
 
-      - name: Build installer
+      - name: Next.js build
         env:
-          # Obrigatório: bake das keys públicas no binário Electron
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           OFFLINE_SESSION_SECRET: ${{ secrets.OFFLINE_SESSION_SECRET || 'desktop-build-placeholder-secret-32chars' }}
+        run: npm run build
+
+      - name: Rebuild better-sqlite3 for Electron
+        env:
+          GYP_MSVS_VERSION: '2022'
+          npm_config_msvs_version: '2022'
+        run: npx --yes @electron/rebuild@4.0.1 -f -w better-sqlite3
+
+      - name: Copy standalone assets
+        run: node scripts/copy-standalone.mjs
+
+      - name: Package Windows installer
+        env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run desktop:build
+        run: npx electron-builder --win
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
