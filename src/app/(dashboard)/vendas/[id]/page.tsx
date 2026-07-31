@@ -136,7 +136,7 @@ export default async function VendaDetalhePage({
                   Pagamento
                 </p>
                 <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mt-0.5">
-                  {PAYMENT_LABELS[sale.payment_method]}
+                  {PAYMENT_LABELS[sale.payment_method as PaymentMethod] ?? sale.payment_method}
                 </p>
               </div>
             </div>
@@ -186,8 +186,12 @@ export default async function VendaDetalhePage({
                   className={`border-slate-100 dark:border-white/5 ${idx % 2 === 1 ? 'bg-slate-50/30 dark:bg-white/2' : ''}`}
                 >
                   <TableCell className="pl-6">
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{item.products.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">{item.products.code}</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100">
+                      {item.products?.name ?? 'Produto'}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
+                      {item.products?.code ?? '—'}
+                    </p>
                   </TableCell>
                   <TableCell className="text-center font-medium text-slate-700 dark:text-slate-300 tabular-nums">
                     {item.quantity}

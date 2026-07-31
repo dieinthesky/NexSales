@@ -69,8 +69,14 @@ export async function getSalesPaged(
 
 export async function getSaleById(id: string): Promise<SaleWithItems | null> {
   if (isElectron()) {
-    const { getSaleById: sqliteGet } = await import('@/lib/db/queries/sales')
-    return sqliteGet(id)
+    try {
+      const { getSaleById: sqliteGet } = await import('@/lib/db/queries/sales')
+      const local = sqliteGet(id)
+      if (local) return local
+    } catch (err) {
+      console.warn('[electron] sqlite getSaleById failed, falling back to Supabase:', err)
+    }
+    // Sale may exist only in Supabase (pull failed / race) — fall through.
   }
 
   const supabase = await createClient()

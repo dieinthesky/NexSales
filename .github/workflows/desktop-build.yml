@@ -65,7 +65,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           OFFLINE_SESSION_SECRET: ${{ secrets.OFFLINE_SESSION_SECRET || 'desktop-build-placeholder-secret-32chars' }}
-        run: npm run build
+        # --webpack: standalone inclui melhor os serverExternalPackages (better-sqlite3)
+        run: npx next build --webpack
 
       - name: Rebuild better-sqlite3 for Electron
         env:
