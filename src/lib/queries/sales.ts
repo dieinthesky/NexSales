@@ -22,18 +22,9 @@ export interface SalesListResult {
 
 const DEFAULT_PAGE_SIZE = 25
 
-export async function getSalesPaged(
+async function getSalesPagedFromSupabase(
   params: SalesListParams = {},
 ): Promise<SalesListResult> {
-  if (isElectron()) {
-    try {
-      const { getSalesPaged: sqliteGet } = await import('@/lib/db/queries/sales')
-      return sqliteGet(params)
-    } catch (err) {
-      console.warn('[electron] sqlite getSalesPaged failed, falling back to Supabase:', err)
-    }
-  }
-
   const supabase = await createClient()
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? DEFAULT_PAGE_SIZE))
@@ -71,18 +62,29 @@ export async function getSalesPaged(
   }
 }
 
-export async function getSaleById(id: string): Promise<SaleWithItems | null> {
+export async function getSalesPaged(
+  params: SalesListParams = {},
+): Promise<SalesListResult> {
+  // Electron online: prefer Supabase so Histórico não fica defasado se o pull SQLite falhar
   if (isElectron()) {
     try {
-      const { getSaleById: sqliteGet } = await import('@/lib/db/queries/sales')
-      const local = sqliteGet(id)
-      if (local) return local
+      return await getSalesPagedFromSupabase(params)
     } catch (err) {
-      console.warn('[electron] sqlite getSaleById failed, falling back to Supabase:', err)
+      console.warn('[electron] Supabase getSalesPaged failed, trying SQLite:', err)
+      try {
+        const { getSalesPaged: sqliteGet } = await import('@/lib/db/queries/sales')
+        return sqliteGet(params)
+      } catch (sqliteErr) {
+        console.warn('[electron] sqlite getSalesPaged also failed:', sqliteErr)
+        throw err
+      }
     }
-    // Sale may exist only in Supabase (pull failed / race) — fall through.
   }
 
+  return getSalesPagedFromSupabase(params)
+}
+
+async function getSaleByIdFromSupabase(id: string): Promise<SaleWithItems | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('sales')
@@ -92,6 +94,28 @@ export async function getSaleById(id: string): Promise<SaleWithItems | null> {
 
   if (error) return null
   return data as SaleWithItems
+}
+
+export async function getSaleById(id: string): Promise<SaleWithItems | null> {
+  // Electron online: prefer Supabase so detalhe/recibo não mostram venda já cancelada
+  // (ou omitem venda nova) enquanto o SQLite ainda não sincronizou.
+  if (isElectron()) {
+    try {
+      const remote = await getSaleByIdFromSupabase(id)
+      if (remote) return remote
+    } catch (err) {
+      console.warn('[electron] Supabase getSaleById failed, trying SQLite:', err)
+    }
+    try {
+      const { getSaleById: sqliteGet } = await import('@/lib/db/queries/sales')
+      return sqliteGet(id)
+    } catch (sqliteErr) {
+      console.warn('[electron] sqlite getSaleById also failed:', sqliteErr)
+      return null
+    }
+  }
+
+  return getSaleByIdFromSupabase(id)
 }
 
 export async function getTopProducts(limit = 5) {

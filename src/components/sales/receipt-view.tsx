@@ -152,7 +152,9 @@ function ReceiptBody({ sale, storeName }: { sale: SaleWithItems; storeName: stri
         {sale.sale_items.map((item) => (
           <div key={item.id} className="flex justify-between items-start gap-1">
             <div className="flex-1 min-w-0">
-              <p className="font-medium leading-tight break-words">{item.products.name}</p>
+              <p className="font-medium leading-tight break-words">
+                {item.products?.name ?? 'Produto removido'}
+              </p>
             </div>
             <span className="w-6 text-center shrink-0">{item.quantity}</span>
             <span className="w-14 text-right shrink-0 whitespace-nowrap">

@@ -66,11 +66,13 @@ export function getProductsPaged(params: ProductsListParams = {}): ProductsListR
   }
 
   if (params.stock === 'out') {
-    conditions.push(`p.stock_quantity <= 0`)
+    conditions.push(`COALESCE(p.track_stock, 1) = 1 AND p.stock_quantity <= 0`)
   } else if (params.stock === 'low') {
-    conditions.push(`p.stock_quantity > 0 AND p.stock_quantity <= p.min_stock`)
+    conditions.push(
+      `COALESCE(p.track_stock, 1) = 1 AND p.stock_quantity > 0 AND p.stock_quantity <= p.min_stock`,
+    )
   } else if (params.stock === 'ok') {
-    conditions.push(`p.stock_quantity > p.min_stock`)
+    conditions.push(`COALESCE(p.track_stock, 1) = 1 AND p.stock_quantity > p.min_stock`)
   }
 
   const where = `WHERE ${conditions.join(' AND ')}`
@@ -107,7 +109,9 @@ export function getLowStock(): ProductWithCategory[] {
               c.id AS cat_id, c.name AS cat_name, c.created_at AS cat_created_at
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
-       WHERE p.is_active = 1 AND p.stock_quantity <= p.min_stock
+       WHERE p.is_active = 1
+         AND COALESCE(p.track_stock, 1) = 1
+         AND p.stock_quantity <= p.min_stock
        ORDER BY p.stock_quantity
        LIMIT 50`,
     )

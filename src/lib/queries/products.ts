@@ -57,25 +57,45 @@ export async function getProductsPaged(
     query = query.eq('category_id', params.categoryId)
   }
 
-  if (params.stock === 'out') {
-    query = query.lte('stock_quantity', 0)
-  }
-
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
+
+  // low/ok precisam comparar stock vs min_stock (coluna a coluna) — PostgREST
+  // não faz isso de forma estável. Para esses filtros, trazemos só produtos
+  // com track_stock e paginamos em memória (catálogo típico de bairro é pequeno).
+  if (params.stock === 'low' || params.stock === 'ok') {
+    query = query.eq('track_stock', true).order('name')
+    const { data, error } = await query
+    if (error) throw new Error(error.message)
+
+    let items = (data ?? []) as ProductWithCategory[]
+    if (params.stock === 'low') {
+      items = items.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock)
+    } else {
+      items = items.filter((p) => p.stock_quantity > p.min_stock)
+    }
+
+    const total = items.length
+    const totalPages = Math.max(1, Math.ceil(total / pageSize))
+    return {
+      items: items.slice(from, from + pageSize),
+      total,
+      page,
+      pageSize,
+      totalPages,
+    }
+  }
+
+  if (params.stock === 'out') {
+    query = query.eq('track_stock', true).lte('stock_quantity', 0)
+  }
+
   query = query.order('name').range(from, to)
 
   const { data, error, count } = await query
   if (error) throw new Error(error.message)
 
-  let items = (data ?? []) as ProductWithCategory[]
-
-  if (params.stock === 'low') {
-    items = items.filter((p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock)
-  } else if (params.stock === 'ok') {
-    items = items.filter((p) => p.stock_quantity > p.min_stock)
-  }
-
+  const items = (data ?? []) as ProductWithCategory[]
   const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -97,8 +117,9 @@ export async function getLowStock(): Promise<ProductWithCategory[]> {
     .from('products')
     .select('*, categories(id, name)')
     .eq('is_active', true)
+    .eq('track_stock', true)
     .order('stock_quantity')
-    .limit(50)
+    .limit(200)
 
   if (error) throw new Error(error.message)
 

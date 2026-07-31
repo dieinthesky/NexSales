@@ -5,16 +5,7 @@ import { startOfMonth, endOfMonth, subDays } from 'date-fns'
 import { brDayRangeUTC, formatBRDayMonth, todayBRISO } from '@/lib/utils/datetime'
 import { isElectron } from '@/lib/db/client'
 
-export async function getDashboardMetrics() {
-  if (isElectron()) {
-    try {
-      const { getDashboardMetrics: sqliteGet } = await import('@/lib/db/queries/dashboard')
-      return sqliteGet()
-    } catch (err) {
-      console.warn('[electron] sqlite getDashboardMetrics failed, falling back to Supabase:', err)
-    }
-  }
-
+async function getDashboardMetricsFromSupabase() {
   const supabase = await createClient()
   const now = new Date()
   const today = brDayRangeUTC(todayBRISO())
@@ -34,8 +25,9 @@ export async function getDashboardMetrics() {
 
     supabase
       .from('products')
-      .select('stock_quantity, min_stock')
-      .eq('is_active', true),
+      .select('stock_quantity, min_stock, track_stock')
+      .eq('is_active', true)
+      .eq('track_stock', true),
 
     supabase
       .from('sales')
@@ -64,16 +56,28 @@ export async function getDashboardMetrics() {
   }
 }
 
-export async function getSalesLast30Days() {
+export async function getDashboardMetrics() {
+  // Electron online: prefer Supabase so totais não incluem vendas já canceladas
+  // enquanto o deleteLocalSale/pull ainda não rodou.
   if (isElectron()) {
     try {
-      const { getSalesLast30Days: sqliteGet } = await import('@/lib/db/queries/dashboard')
-      return sqliteGet()
+      return await getDashboardMetricsFromSupabase()
     } catch (err) {
-      console.warn('[electron] sqlite getSalesLast30Days failed, falling back to Supabase:', err)
+      console.warn('[electron] Supabase getDashboardMetrics failed, trying SQLite:', err)
+      try {
+        const { getDashboardMetrics: sqliteGet } = await import('@/lib/db/queries/dashboard')
+        return sqliteGet()
+      } catch (sqliteErr) {
+        console.warn('[electron] sqlite getDashboardMetrics also failed:', sqliteErr)
+        throw err
+      }
     }
   }
 
+  return getDashboardMetricsFromSupabase()
+}
+
+async function getSalesLast30DaysFromSupabase() {
   const supabase = await createClient()
   const now = new Date()
   const from = subDays(now, 29)
@@ -100,4 +104,23 @@ export async function getSalesLast30Days() {
   }
 
   return Object.entries(byDay).map(([date, total]) => ({ date, total }))
+}
+
+export async function getSalesLast30Days() {
+  if (isElectron()) {
+    try {
+      return await getSalesLast30DaysFromSupabase()
+    } catch (err) {
+      console.warn('[electron] Supabase getSalesLast30Days failed, trying SQLite:', err)
+      try {
+        const { getSalesLast30Days: sqliteGet } = await import('@/lib/db/queries/dashboard')
+        return sqliteGet()
+      } catch (sqliteErr) {
+        console.warn('[electron] sqlite getSalesLast30Days also failed:', sqliteErr)
+        throw err
+      }
+    }
+  }
+
+  return getSalesLast30DaysFromSupabase()
 }

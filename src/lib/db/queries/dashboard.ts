@@ -36,7 +36,10 @@ export function getDashboardMetrics() {
     .all(monthStart, monthEnd) as Pick<SaleRow, 'total_amount'>[]
 
   const allProducts = db
-    .prepare(`SELECT stock_quantity, min_stock FROM products WHERE is_active = 1`)
+    .prepare(
+      `SELECT stock_quantity, min_stock FROM products
+       WHERE is_active = 1 AND COALESCE(track_stock, 1) = 1`,
+    )
     .all() as ProductStockRow[]
 
   const recentSales = db

@@ -15,6 +15,7 @@ export async function getCustomersWithDebt(): Promise<CustomerBalance[]> {
     const { data, error } = await supabase
       .from('customer_balances')
       .select('*')
+      .gt('current_debt', 0)
       .order('current_debt', { ascending: false })
     if (error) throw error
     return data as CustomerBalance[]
@@ -96,22 +97,30 @@ export async function getPaymentReceipt(
   customerId: string,
   paymentId: string,
 ): Promise<PaymentReceiptData | null> {
-  // Always use Supabase: the payment was just created online via RPC and
-  // won't be in the local SQLite cache until the next sync cycle.
-  const supabase = await createClient()
+  try {
+    const supabase = await createClient()
 
-  const [paymentRes, customerRes, balanceRes] = await Promise.all([
-    supabase.from('debt_payments').select('*').eq('id', paymentId).eq('customer_id', customerId).single(),
-    supabase.from('customers').select('*').eq('id', customerId).single(),
-    supabase.from('customer_balances').select('current_debt').eq('id', customerId).single(),
-  ])
+    const [paymentRes, customerRes, balanceRes] = await Promise.all([
+      supabase.from('debt_payments').select('*').eq('id', paymentId).eq('customer_id', customerId).single(),
+      supabase.from('customers').select('*').eq('id', customerId).single(),
+      supabase.from('customer_balances').select('current_debt').eq('id', customerId).single(),
+    ])
 
-  if (paymentRes.error || !paymentRes.data) return null
-  if (customerRes.error || !customerRes.data) return null
-
-  return {
-    payment: paymentRes.data as DebtPayment,
-    customer: customerRes.data as Customer,
-    remainingDebt: balanceRes.data?.current_debt ?? 0,
+    if (!paymentRes.error && paymentRes.data && !customerRes.error && customerRes.data) {
+      return {
+        payment: paymentRes.data as DebtPayment,
+        customer: customerRes.data as Customer,
+        remainingDebt: balanceRes.data?.current_debt ?? 0,
+      }
+    }
+  } catch {
+    // fall through to SQLite
   }
+
+  if (isElectron()) {
+    const { getPaymentReceipt: sqliteGet } = await import('@/lib/db/queries/customers')
+    return sqliteGet(customerId, paymentId)
+  }
+
+  return null
 }

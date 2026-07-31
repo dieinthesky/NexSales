@@ -49,7 +49,7 @@ export async function queueSale(input: QueueSaleInput): Promise<void> {
     await db.pendingSales.put(sale)
     for (const item of input.items) {
       const product = await db.products.get(item.product_id)
-      if (product) {
+      if (product?.track_stock) {
         await db.products.update(item.product_id, {
           stock_quantity: Math.max(0, product.stock_quantity - item.quantity),
         })

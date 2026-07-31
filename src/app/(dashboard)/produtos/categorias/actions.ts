@@ -14,7 +14,11 @@ export async function createCategory(name: string) {
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
   const supabase = await createClient()
-  const { error } = await supabase.from('categories').insert({ name: parsed.data.name })
+  const { data, error } = await supabase
+    .from('categories')
+    .insert({ name: parsed.data.name })
+    .select('id, name, created_at')
+    .single()
 
   if (error) {
     if (error.code === '23505') return { error: 'Categoria já existe.' }
@@ -23,7 +27,7 @@ export async function createCategory(name: string) {
 
   revalidatePath('/produtos/categorias')
   revalidatePath('/produtos')
-  return { success: true }
+  return { success: true, category: data }
 }
 
 export async function deleteCategory(id: string) {
@@ -36,5 +40,6 @@ export async function deleteCategory(id: string) {
   if (error) return { error: error.message }
 
   revalidatePath('/produtos/categorias')
+  revalidatePath('/produtos')
   return { success: true }
 }

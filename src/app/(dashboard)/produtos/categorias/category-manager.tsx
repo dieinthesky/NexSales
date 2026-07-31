@@ -28,7 +28,11 @@ export function CategoryManager({ initialCategories }: CategoryManagerProps) {
     } else {
       toast.success('Categoria criada')
       setNewName('')
-      // Optimistic — page will revalidate
+      if (result.category) {
+        setCategories((prev) =>
+          [...prev, result.category!].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+        )
+      }
     }
     setIsAdding(false)
   }

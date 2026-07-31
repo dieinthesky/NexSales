@@ -85,7 +85,7 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
   function confirmStaged() {
     if (!staged) return
     const { product, quantity } = staged
-    if (quantity > product.stock_quantity) {
+    if (product.track_stock && quantity > product.stock_quantity) {
       toast.error(`Estoque insuficiente. Disponível: ${product.stock_quantity}`)
       return
     }
@@ -100,8 +100,11 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
 
   function setStagedQty(value: number) {
     if (!staged) return
-    const clamped = Math.max(1, Math.min(staged.product.stock_quantity, Math.floor(value) || 1))
-    setStaged((prev) => prev ? { ...prev, quantity: clamped } : null)
+    const raw = Math.floor(value) || 1
+    const clamped = staged.product.track_stock
+      ? Math.max(1, Math.min(staged.product.stock_quantity, raw))
+      : Math.max(1, raw)
+    setStaged((prev) => (prev ? { ...prev, quantity: clamped } : null))
   }
 
   async function handleBarcodeLookup(code: string) {
@@ -124,7 +127,7 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
       searchRef.current?.select()
       return
     }
-    if (product.stock_quantity <= 0) {
+    if (product.track_stock && product.stock_quantity <= 0) {
       toast.error(`Sem estoque: ${product.name}`)
       searchRef.current?.select()
       return
@@ -256,7 +259,7 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
                 ref={stagedQtyRef}
                 type="number"
                 min={1}
-                max={staged.product.stock_quantity}
+                max={staged.product.track_stock ? staged.product.stock_quantity : undefined}
                 value={staged.quantity}
                 onChange={(e) => setStagedQty(parseInt(e.target.value, 10) || 1)}
                 onFocus={(e) => e.currentTarget.select()}
@@ -267,7 +270,10 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
               <button
                 type="button"
                 onClick={() => setStagedQty(staged.quantity + 1)}
-                disabled={staged.quantity >= staged.product.stock_quantity}
+                disabled={
+                  staged.product.track_stock &&
+                  staged.quantity >= staged.product.stock_quantity
+                }
                 className="h-9 w-9 inline-flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8 disabled:opacity-40 transition-colors"
                 aria-label="Aumentar"
               >

@@ -102,7 +102,7 @@ export function getSaleById(id: string): SaleWithItems | null {
         p.category_id, p.is_active, p.track_stock,
         p.created_at AS prod_created_at, p.updated_at AS prod_updated_at
        FROM sale_items si
-       JOIN products p ON p.id = si.product_id
+       LEFT JOIN products p ON p.id = si.product_id
        WHERE si.sale_id = ?`,
     )
     .all(id) as RawSaleItemRow[]
@@ -125,19 +125,19 @@ export function getSaleById(id: string): SaleWithItems | null {
       subtotal: item.subtotal,
       item_description: item.item_description,
       products: {
-        id: item.prod_id,
-        code: item.code,
-        name: item.prod_name,
-        description: item.description,
-        sale_price: item.sale_price,
-        cost_price: item.cost_price,
-        stock_quantity: item.stock_quantity,
-        min_stock: item.min_stock,
-        category_id: item.category_id,
+        id: item.prod_id ?? item.product_id,
+        code: item.code ?? '—',
+        name: item.prod_name ?? 'Produto removido',
+        description: item.description ?? null,
+        sale_price: item.sale_price ?? item.unit_price,
+        cost_price: item.cost_price ?? 0,
+        stock_quantity: item.stock_quantity ?? 0,
+        min_stock: item.min_stock ?? 0,
+        category_id: item.category_id ?? null,
         is_active: item.is_active === 1,
-        track_stock: item.track_stock === 1,
-        created_at: item.prod_created_at,
-        updated_at: item.prod_updated_at,
+        track_stock: item.track_stock !== 0,
+        created_at: item.prod_created_at ?? sale.created_at,
+        updated_at: item.prod_updated_at ?? sale.created_at,
       } as Product,
     })),
   }

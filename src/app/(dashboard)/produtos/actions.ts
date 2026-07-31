@@ -12,6 +12,8 @@ export type BarcodeLookupResult =
       status: 'already_registered'
       productId: string
       name: string
+      /** Soft-deleted product — código ainda ocupado; reativar em vez de criar de novo. */
+      inactive?: boolean
     }
   | {
       status: 'found_external'
@@ -41,10 +43,10 @@ export async function lookupProductByBarcode(
   try {
     const supabase = await createClient()
 
-    // 1. Already cadastrated by the user?
+    // 1. Already cadastrated by the user? (inclui inativos — code é UNIQUE)
     const { data: existing, error: existingError } = await supabase
       .from('products')
-      .select('id, name')
+      .select('id, name, is_active')
       .eq('code', trimmed)
       .maybeSingle()
 
@@ -57,6 +59,7 @@ export async function lookupProductByBarcode(
         status: 'already_registered',
         productId: existing.id,
         name: existing.name,
+        inactive: existing.is_active === false,
       }
     }
 
@@ -193,5 +196,23 @@ export async function deleteProduct(id: string) {
   if (error) return { error: error.message }
 
   revalidatePath('/produtos')
+  return { success: true }
+}
+
+export async function reactivateProduct(id: string) {
+  if (!(await isAdmin())) {
+    return { error: 'Apenas administradores podem reativar produtos.' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('products')
+    .update({ is_active: true })
+    .eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/produtos')
+  revalidatePath(`/produtos/${id}`)
   return { success: true }
 }

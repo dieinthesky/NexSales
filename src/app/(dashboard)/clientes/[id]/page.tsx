@@ -137,7 +137,7 @@ export default async function ClienteDetalhePage({ params }: Props) {
                       {formatDate(sale.created_at)}
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-sm text-slate-500 dark:text-slate-400 max-w-xs truncate">
-                      {sale.sale_items.map((i) => `${i.quantity}× ${i.products.name}`).join(', ')}
+                      {sale.sale_items.map((i) => `${i.quantity}× ${i.products?.name ?? 'Produto'}`).join(', ')}
                     </TableCell>
                     <TableCell className="text-right font-semibold tabular-nums text-slate-900 dark:text-slate-100">
                       {formatCurrency(sale.total_amount)}

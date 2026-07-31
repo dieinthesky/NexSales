@@ -20,12 +20,12 @@ export function buildReceiptText(
   lines.push('ITEM            QTD   UNIT.   TOTAL')
 
   for (const item of sale.sale_items) {
-    const name = truncate(item.products.name, 18)
+    const name = truncate(item.products?.name ?? 'Produto removido', 18)
     const qty = String(item.quantity).padStart(3, ' ')
     const unit = formatCurrency(item.unit_price).padStart(8, ' ')
     const sub = formatCurrency(item.subtotal).padStart(9, ' ')
     lines.push(`${name.padEnd(18, ' ')} ${qty} ${unit}${sub}`)
-    lines.push(`  Cód: ${item.products.code}`)
+    lines.push(`  Cód: ${item.products?.code ?? '—'}`)
   }
 
   lines.push(sep)

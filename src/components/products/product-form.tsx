@@ -168,12 +168,17 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
       const result = await lookupProductByBarcode(trimmed)
 
       if (result.status === 'already_registered') {
-        toast.warning(`Já cadastrado: ${result.name}`, {
-          action: {
-            label: 'Abrir',
-            onClick: () => router.push(`/produtos/${result.productId}`),
+        toast.warning(
+          result.inactive
+            ? `Código inativo: ${result.name}. Reative o produto para usar de novo.`
+            : `Já cadastrado: ${result.name}`,
+          {
+            action: {
+              label: result.inactive ? 'Reativar' : 'Abrir',
+              onClick: () => router.push(`/produtos/${result.productId}`),
+            },
           },
-        })
+        )
         return
       }
 
@@ -474,14 +479,14 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">Categoria</Label>
             <Select
-              defaultValue={product?.category_id ?? ''}
-              onValueChange={(v) => setValue('category_id', v)}
+              defaultValue={product?.category_id ?? '__none__'}
+              onValueChange={(v) => setValue('category_id', v === '__none__' ? '' : v)}
             >
               <SelectTrigger className="h-10 border-slate-200 dark:border-white/10">
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Sem categoria</SelectItem>
+                <SelectItem value="__none__">Sem categoria</SelectItem>
                 {categories.map((cat) => (
                   <SelectItem key={cat.id} value={cat.id}>
                     {cat.name}

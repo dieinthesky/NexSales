@@ -48,23 +48,37 @@ async function pullFromSupabase(): Promise<void> {
     supabase.from('debt_payments').select('*').gte('created_at', since),
   ])
 
-  const saleIds = (salesRes.data ?? []).map((s) => s.id)
+  const remoteSales = (salesRes.data ?? []) as Sale[]
+  const saleIds = remoteSales.map((s) => s.id)
   let saleItems: SaleItem[] = []
-  if (saleIds.length > 0) {
-    const { data } = await supabase
-      .from('sale_items')
-      .select('*')
-      .in('sale_id', saleIds.slice(0, 1000))
-    saleItems = (data ?? []) as SaleItem[]
+  // Chunk .in() — PostgREST/URL limits; avoid huge single requests
+  const CHUNK = 200
+  for (let i = 0; i < saleIds.length; i += CHUNK) {
+    const chunk = saleIds.slice(i, i + CHUNK)
+    const { data } = await supabase.from('sale_items').select('*').in('sale_id', chunk)
+    if (data?.length) saleItems = saleItems.concat(data as SaleItem[])
   }
+
+  const remoteSaleIdSet = new Set(saleIds)
 
   const upsertAll = db.transaction(() => {
     _upsertCategories(catRes.data as Category[] ?? [])
     _upsertProducts(prodRes.data as Product[] ?? [])
     _upsertCustomers(custRes.data as Customer[] ?? [])
-    _upsertSales(salesRes.data as Sale[] ?? [])
+    _upsertSales(remoteSales)
     _upsertSaleItems(saleItems)
     _upsertDebtPayments(paymentsRes.data as DebtPayment[] ?? [])
+
+    // Remove local sales in the sync window that no longer exist remotely (cancelled)
+    const localRecent = db
+      .prepare(`SELECT id FROM sales WHERE created_at >= ?`)
+      .all(since) as { id: string }[]
+    for (const row of localRecent) {
+      if (!remoteSaleIdSet.has(row.id)) {
+        db.prepare(`DELETE FROM sale_items WHERE sale_id = ?`).run(row.id)
+        db.prepare(`DELETE FROM sales WHERE id = ?`).run(row.id)
+      }
+    }
   })
 
   upsertAll()

@@ -98,18 +98,27 @@ export function PDV({ avulsoProduct }: PDVProps) {
   const cashShort = hasCashEntered && cashReceived < total
 
   function handleAddItem(item: CartItem) {
+    const addQty = Math.max(1, item.quantity)
     setCartItems((prev) => {
       const existing = prev.find((i) => i.product.id === item.product.id)
       if (existing) {
         if (existing.product.track_stock) {
           return prev.map((i) =>
             i.product.id === item.product.id
-              ? { ...i, quantity: Math.min(i.quantity + 1, existing.product.stock_quantity) }
+              ? {
+                  ...i,
+                  quantity: Math.min(
+                    i.quantity + addQty,
+                    existing.product.stock_quantity,
+                  ),
+                }
               : i
           )
         }
         return prev.map((i) =>
-          i.product.id === item.product.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.product.id === item.product.id
+            ? { ...i, quantity: i.quantity + addQty }
+            : i
         )
       }
       return [...prev, item]
@@ -256,10 +265,20 @@ export function PDV({ avulsoProduct }: PDVProps) {
         })
 
         if (result.error) {
+          // Sessão expirada mas ainda "online": grava na fila offline em vez de perder a venda
+          if (
+            result.code === 'unauthenticated' ||
+            result.error.toLowerCase().includes('sessão')
+          ) {
+            await saveOffline(clientUuid)
+            return
+          }
           toast.error(result.error)
           return
         }
 
+        // Limpa o carrinho antes do redirect — evita venda duplicada se o usuário clicar de novo
+        resetForm()
         toast.success('Venda registrada com sucesso!')
         router.push(`/vendas/${result.saleId}`)
       } catch {

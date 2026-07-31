@@ -75,7 +75,7 @@ export function ProductActions({ productId, productName }: ProductActionsProps) 
             <AlertDialogTitle>Desativar produto?</AlertDialogTitle>
             <AlertDialogDescription>
               O produto <strong>{productName}</strong> será desativado e não aparecerá mais nas
-              vendas. Esta ação pode ser revertida editando o produto.
+              vendas. O código fica reservado — para reativar, abra o produto e use Reativar.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -48,10 +48,13 @@ export function PaymentReceiptView({ data, storeName = 'VendasApp' }: PaymentRec
   }
 
   function handleWhatsApp() {
-    const phone = customer.phone?.replace(/\D/g, '')
+    const digits = customer.phone?.replace(/\D/g, '') ?? ''
+    // Evita 5555… quando o telefone já está salvo com DDI 55.
+    const phone =
+      digits.startsWith('55') && digits.length >= 12 ? digits : digits ? `55${digits}` : ''
     const text = buildWhatsAppText(data, storeName)
     const url = phone
-      ? `https://wa.me/55${phone}?text=${encodeURIComponent(text)}`
+      ? `https://wa.me/${phone}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`
     window.open(url, '_blank', 'noopener,noreferrer')
   }

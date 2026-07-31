@@ -92,6 +92,10 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
   revalidatePath('/vendas')
   revalidatePath('/produtos')
   revalidatePath('/dashboard')
+  if (input.customer_id) {
+    revalidatePath('/clientes')
+    revalidatePath(`/clientes/${input.customer_id}`)
+  }
 
   return { saleId }
 }
@@ -143,11 +147,12 @@ export async function cancelSale(saleId: string): Promise<CancelSaleResult> {
     })
   }
 
-  // Invalidate every surface that derives data from sales/stock.
+  // Invalidate every surface that derives data from sales/stock/fiado.
   revalidatePath('/vendas')
   revalidatePath(`/vendas/${saleId}`)
   revalidatePath('/dashboard')
   revalidatePath('/produtos')
+  revalidatePath('/clientes')
 
   return { success: true }
 }

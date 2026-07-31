@@ -4,6 +4,7 @@ import { CashCloseView } from '@/components/sales/cash-close-view'
 import { getCurrentUser } from '@/lib/auth/roles'
 import { tryQuery } from '@/lib/supabase/try-query'
 import { OfflineBanner } from '@/components/offline/offline-banner'
+import { todayBRISO } from '@/lib/utils/datetime'
 
 export const metadata = {
   title: 'Fechamento de caixa',
@@ -18,7 +19,13 @@ export default async function FechamentoPage({
   if (!user) redirect('/login')
 
   const { date } = await searchParams
-  const localDate = isValidDate(date) ? date : todayLocalISO()
+  // Funcionário só fecha o caixa de hoje; admin pode escolher qualquer dia.
+  const localDate =
+    user.role !== 'admin'
+      ? todayBRISO()
+      : isValidDate(date)
+        ? date
+        : todayLocalISO()
 
   const EMPTY_SUMMARY: CashCloseSummary = {
     date: localDate,

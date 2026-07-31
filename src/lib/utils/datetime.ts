@@ -45,13 +45,18 @@ export function formatBRDateTime(date: Date | string): string {
  * report because the server (UTC) already thinks it's tomorrow.
  */
 export function todayBRISO(): string {
+  return toBRISO(new Date())
+}
+
+/** Calendar day (YYYY-MM-DD) of an instant in BRT. */
+export function toBRISO(date: Date | string): string {
   // en-CA formats as YYYY-MM-DD, which is exactly what we want.
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: BR_TZ,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  }).format(new Date())
+  }).format(typeof date === 'string' ? new Date(date) : date)
 }
 
 /**

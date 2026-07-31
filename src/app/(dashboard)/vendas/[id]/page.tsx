@@ -16,6 +16,7 @@ import { formatCurrency, formatDate, PAYMENT_LABELS } from '@/lib/utils/format'
 import { getCurrentUser } from '@/lib/auth/roles'
 import { shortSaleId } from '@/lib/utils/receipt'
 import { CancelSaleButton } from '@/components/sales/cancel-sale-button'
+import { toBRISO, todayBRISO } from '@/lib/utils/datetime'
 import type { PaymentMethod } from '@/types/database'
 
 type PaymentStyle = { badge: string; dot: string }
@@ -67,6 +68,11 @@ export default async function VendaDetalhePage({
   ])
 
   if (!sale) notFound()
+
+  // Funcionário só pode abrir vendas de hoje (mesma trava do histórico).
+  if (currentUser?.role !== 'admin' && toBRISO(sale.created_at) !== todayBRISO()) {
+    notFound()
+  }
 
   const isAdminUser = currentUser?.role === 'admin'
 

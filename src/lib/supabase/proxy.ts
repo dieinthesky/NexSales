@@ -3,7 +3,14 @@ import { type NextRequest, NextResponse } from 'next/server'
 import type { Database } from '@/types/database'
 import { getUserFromSessionCookie, getUserFromOfflineCookie } from './decode-session'
 
-const PROTECTED_PATHS = ['/dashboard', '/vendas', '/produtos', '/configuracoes', '/relatorios']
+const PROTECTED_PATHS = [
+  '/dashboard',
+  '/vendas',
+  '/produtos',
+  '/clientes',
+  '/configuracoes',
+  '/relatorios',
+]
 const AUTH_PATHS = ['/login', '/cadastro', '/esqueceu-senha', '/redefinir-senha']
 
 /**
@@ -48,10 +55,9 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       global: {
-        fetch: (url, init) =>
-          fetch(url, { ...init, signal: controller.signal }).finally(() =>
-            clearTimeout(abortTimer),
-          ),
+        // Não limpar o timer no primeiro fetch — getUser() pode fazer refresh + user
+        // em sequência; limpar cedo deixa o 2º request sem deadline (hang offline).
+        fetch: (url, init) => fetch(url, { ...init, signal: controller.signal }),
       },
       cookies: {
         getAll() {
