@@ -1,4 +1,4 @@
-﻿export interface RecentProfile {
+export interface RecentProfile {
   username: string
   lastLogin: string
 }

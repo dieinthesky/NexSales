@@ -91,16 +91,27 @@ async function startNextServer() {
   const dbPath = path.join(app.getPath('userData'), 'caixadobairro.db')
   const logPath = path.join(app.getPath('userData'), 'server.log')
 
-  // In dev mode run `next dev`; in production use the standalone server.js
-  // (no `next` binary needed — standalone output bundles only what's required).
-  const [cmd, cmdArgs, cwd] = app.isPackaged
-    ? ['node', [getStandaloneServer()], path.join(root, '.next', 'standalone')]
-    : ['node', [path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next'), 'dev', '--port', String(NEXT_PORT), '--turbopack'], root]
+  // Packaged: run standalone server.js with Electron as Node (no Node.js
+  // install required on the cashier PC). Dev: normal `next dev`.
+  const [cmd, cmdArgs, cwd, extraEnv] = app.isPackaged
+    ? [
+        process.execPath,
+        [getStandaloneServer()],
+        path.join(root, '.next', 'standalone'),
+        { ELECTRON_RUN_AS_NODE: '1' },
+      ]
+    : [
+        'node',
+        [path.join(root, 'node_modules', 'next', 'dist', 'bin', 'next'), 'dev', '--port', String(NEXT_PORT), '--turbopack'],
+        root,
+        {},
+      ]
 
   nextProcess = spawn(cmd, cmdArgs, {
     cwd,
     env: {
       ...process.env,
+      ...extraEnv,
       ELECTRON_APP: 'true',
       DB_PATH: dbPath,
       OFFLINE_CREDS_PATH: app.getPath('userData'),

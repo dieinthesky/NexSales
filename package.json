@@ -18,7 +18,7 @@
     "e2e:report": "playwright show-report",
     "pwa:icons": "node scripts/generate-pwa-icons.mjs",
     "desktop": "electron .",
-    "desktop:build": "npm rebuild better-sqlite3 && next build && node scripts/copy-standalone.mjs && electron-builder --win",
+    "desktop:build": "next build && npx electron-rebuild -f -w better-sqlite3 && node scripts/copy-standalone.mjs && electron-builder --win",
     "desktop:rebuild-sqlite": "npx electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
