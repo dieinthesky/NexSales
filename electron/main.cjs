@@ -1,5 +1,5 @@
 /**
- * NexSales — Electron desktop shell (Windows).
+ * CaixaDoBairro — Electron desktop shell (Windows).
  *
  * Architecture: spawns a local Next.js server so all page rendering and
  * data queries happen entirely on this machine. SQLite is used as the local
@@ -43,7 +43,7 @@ let nextProcess = null
  * OFFLINE_SESSION_SECRET so offline session cookies can be signed/verified.
  */
 function getOrCreateOfflineSecret(userData) {
-  const secretFile = path.join(userData, '.nexsales-secret')
+  const secretFile = path.join(userData, '.caixadobairro-secret')
   try {
     const existing = fss.readFileSync(secretFile, 'utf8').trim()
     if (existing.length >= 32) return existing
@@ -88,7 +88,7 @@ function waitForServer(maxMs = 90_000) {
 
 async function startNextServer() {
   const root = getProjectRoot()
-  const dbPath = path.join(app.getPath('userData'), 'nexsales.db')
+  const dbPath = path.join(app.getPath('userData'), 'caixadobairro.db')
   const logPath = path.join(app.getPath('userData'), 'server.log')
 
   // In dev mode run `next dev`; in production use the standalone server.js
@@ -150,7 +150,7 @@ function createWindow() {
     height: 800,
     minWidth: 1024,
     minHeight: 680,
-    title: 'NexSales',
+    title: 'CaixaDoBairro',
     backgroundColor: '#0f172a',
     icon: path.join(__dirname, 'icon.png'),
     autoHideMenuBar: true,
@@ -210,7 +210,7 @@ app.whenReady().then(async () => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     dialog.showErrorBox(
-      'Falha ao iniciar NexSales',
+      'Falha ao iniciar CaixaDoBairro',
       `Não foi possível iniciar o servidor local.\n\n${msg}\n\nVerifique se o Node.js está instalado e tente novamente.`,
     )
     app.quit()

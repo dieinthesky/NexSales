@@ -28,28 +28,28 @@ const poppins = Poppins({
 })
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://nexsales-pdv.vercel.app'),
-  title: 'NexSales — Smart Sales Platform',
-  description: 'Plataforma moderna de gestão de vendas, clientes e performance do seu negócio.',
-  applicationName: 'NexSales',
-  keywords: ['PDV', 'ponto de venda', 'gestão de vendas', 'clientes', 'relatórios', 'NexSales'],
-  authors: [{ name: 'NexSales' }],
+  metadataBase: new URL('https://nex-sales.vercel.app'),
+  title: 'CaixaDoBairro — PDV do bairro',
+  description: 'PDV, estoque, fiado e relatórios para o mercadinho do seu bairro.',
+  applicationName: 'CaixaDoBairro',
+  keywords: ['PDV', 'ponto de venda', 'gestão de vendas', 'clientes', 'relatórios', 'CaixaDoBairro'],
+  authors: [{ name: 'CaixaDoBairro' }],
   openGraph: {
     type: 'website',
     locale: 'pt_BR',
-    title: 'NexSales — Smart Sales Platform',
-    description: 'Plataforma moderna de gestão de vendas, clientes e performance do seu negócio.',
-    siteName: 'NexSales',
+    title: 'CaixaDoBairro — PDV do bairro',
+    description: 'PDV, estoque, fiado e relatórios para o mercadinho do seu bairro.',
+    siteName: 'CaixaDoBairro',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NexSales — Smart Sales Platform',
-    description: 'Plataforma moderna de gestão de vendas, clientes e performance do seu negócio.',
+    title: 'CaixaDoBairro — PDV do bairro',
+    description: 'PDV, estoque, fiado e relatórios para o mercadinho do seu bairro.',
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'NexSales',
+    title: 'CaixaDoBairro',
   },
   icons: {
     icon: [

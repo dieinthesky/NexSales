@@ -80,7 +80,7 @@ async function lookupCosmos(code: string): Promise<ExternalBarcodeResult | null>
     {
       headers: {
         'X-Cosmos-Token': token,
-        'User-Agent': 'nexsales/1.0',
+        'User-Agent': 'caixadobairro/1.0',
         Accept: 'application/json',
       },
     },
@@ -110,7 +110,7 @@ async function lookupOpenFoodFacts(
   const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`
   const res = await fetchWithTimeout(
     url,
-    { headers: { Accept: 'application/json', 'User-Agent': 'nexsales/1.0' } },
+    { headers: { Accept: 'application/json', 'User-Agent': 'caixadobairro/1.0' } },
     EXTERNAL_TIMEOUT_MS,
   )
 
@@ -137,7 +137,7 @@ async function lookupUpcItemDb(code: string): Promise<ExternalBarcodeResult | nu
   const url = `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(code)}`
   const res = await fetchWithTimeout(
     url,
-    { headers: { Accept: 'application/json', 'User-Agent': 'nexsales/1.0' } },
+    { headers: { Accept: 'application/json', 'User-Agent': 'caixadobairro/1.0' } },
     EXTERNAL_TIMEOUT_MS,
   )
 

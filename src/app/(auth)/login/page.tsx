@@ -122,8 +122,8 @@ function LoginPageContent() {
         <ShoppingBag className="h-5 w-5 text-white" strokeWidth={2} />
       </div>
       <div className="flex flex-col leading-tight">
-        <span className="font-bold text-slate-900">NexSales</span>
-        <span className="text-[9px] uppercase tracking-widest text-slate-400">Smart Sales</span>
+        <span className="font-bold text-slate-900">CaixaDoBairro</span>
+        <span className="text-[9px] uppercase tracking-widest text-slate-400">PDV do Bairro</span>
       </div>
     </div>
   )
@@ -275,7 +275,7 @@ function LoginPageContent() {
       <div className="mb-8">
         <h2 className="text-3xl font-bold tracking-tight text-slate-900 font-heading">
           Bem-vindo ao{' '}
-          <span className="text-primary">NexSales</span>
+          <span className="text-primary">CaixaDoBairro</span>
         </h2>
         <p className="mt-2 text-slate-500 text-sm leading-relaxed">
           Faça login para continuar.

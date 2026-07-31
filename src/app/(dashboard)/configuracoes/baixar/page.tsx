@@ -24,7 +24,7 @@ export default async function BaixarAppPage() {
             Aplicativo Desktop
           </span>
           <span className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-            NexSales para Windows
+            CaixaDoBairro para Windows
           </span>
           <span className="text-sm text-slate-500 dark:text-slate-400">
             Mesmo sistema do site, numa janela própria. Login e dados são os

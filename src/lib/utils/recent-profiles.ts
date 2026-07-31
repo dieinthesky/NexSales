@@ -3,7 +3,7 @@
   lastLogin: string
 }
 
-const KEY = 'nexsales_recent_profiles'
+const KEY = 'caixadobairro_recent_profiles'
 const MAX = 2
 
 export function getRecentProfiles(): RecentProfile[] {

@@ -5,7 +5,7 @@ import { Download, MonitorDown, Check, ShieldAlert, WifiOff } from 'lucide-react
 
 const DOWNLOAD_URL =
   process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL ||
-  'https://github.com/MatheusBrazolin/NexSales/releases/latest/download/NexSales-Instalador.exe'
+  '#'
 
 export function DownloadApp() {
   const [inDesktopApp, setInDesktopApp] = useState(false)

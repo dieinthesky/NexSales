@@ -28,7 +28,7 @@ function getSecret(): string {
     console.warn(
       '[offline-cookie] OFFLINE_SESSION_SECRET not set — using insecure dev fallback. Set it before going to production.',
     )
-    return 'nexsales-offline-dev-only-fallback'
+    return 'caixadobairro-offline-dev-only-fallback'
   }
   return secret
 }

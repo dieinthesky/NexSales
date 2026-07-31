@@ -43,7 +43,7 @@ export default function EsqueceuSenhaPage() {
         <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
           <ShoppingCart className="h-4 w-4 text-white" />
         </div>
-        <span className="font-semibold text-slate-900">NexSales</span>
+        <span className="font-semibold text-slate-900">CaixaDoBairro</span>
       </div>
 
       {sent ? (

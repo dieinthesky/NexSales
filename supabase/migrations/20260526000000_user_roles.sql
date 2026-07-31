@@ -166,7 +166,7 @@ grant execute on function public.admin_set_role(uuid, public.user_role) to authe
 -- ------------------------------------------------------------
 do $$
 declare
-  v_admin_email text := 'matheus@otmtech.com.br';
+  v_admin_email text := 'admin@vendas-app.interno';
   v_user_id uuid;
 begin
   select id into v_user_id from auth.users where email = v_admin_email;

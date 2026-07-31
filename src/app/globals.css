@@ -55,7 +55,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* NexSales primary: vivid purple */
+  /* CaixaDoBairro primary: vivid purple */
   --primary: oklch(0.55 0.27 292);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.96 0.015 292);
@@ -92,7 +92,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.20 0.04 258);
   --popover-foreground: oklch(0.985 0 0);
-  /* NexSales dark mode primary: lighter purple for contrast */
+  /* CaixaDoBairro dark mode primary: lighter purple for contrast */
   --primary: oklch(0.68 0.20 292);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);

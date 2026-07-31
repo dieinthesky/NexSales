@@ -1,9 +1,9 @@
 {
-  "name": "nexsales",
+  "name": "caixadobairro",
   "version": "0.1.0",
   "private": true,
-  "description": "NexSales — Smart Sales Management Platform. PDV, gestão de produtos, clientes e relatórios.",
-  "author": "OTM Tech",
+  "description": "CaixaDoBairro — PDV, estoque, fiado e relatórios para o mercadinho do bairro.",
+  "author": "CaixaDoBairro",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "next dev",
@@ -72,12 +72,12 @@
     "vitest": "^2.1.9"
   },
   "build": {
-    "appId": "br.com.otmtech.nexsales",
-    "productName": "NexSales",
+    "appId": "br.com.caixadobairro.app",
+    "productName": "CaixaDoBairro",
     "directories": {
       "output": "instalador"
     },
-    "artifactName": "NexSales-Instalador.${ext}",
+    "artifactName": "CaixaDoBairro-Instalador.${ext}",
     "files": [
       "electron/**/*",
       ".next/standalone/**/*",
@@ -100,7 +100,7 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "NexSales"
+      "shortcutName": "CaixaDoBairro"
     }
   }
 }

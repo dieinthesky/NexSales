@@ -221,8 +221,8 @@ function SidebarBrand() {
           <Store className="h-5 w-5 text-white" strokeWidth={2} />
         </motion.div>
         <div className="flex flex-col leading-tight">
-          <span className="font-semibold text-white text-base tracking-tight">NexSales</span>
-          <span className="text-[10px] uppercase tracking-wider text-slate-500">Smart Sales</span>
+          <span className="font-semibold text-white text-base tracking-tight">CaixaDoBairro</span>
+          <span className="text-[10px] uppercase tracking-wider text-slate-500">PDV do Bairro</span>
         </div>
       </Link>
     </div>
@@ -236,7 +236,7 @@ function SidebarFooter({ role }: { role: UserRole }) {
     <div className="px-4 py-4 border-t border-slate-800">
       <div className="rounded-lg bg-slate-800/50 px-3 py-2.5 text-xs text-slate-400">
         <div className="flex items-center justify-between gap-2">
-          <p className="font-medium text-slate-300">NexSales v1.0</p>
+          <p className="font-medium text-slate-300">CaixaDoBairro v1.0</p>
           <div className="flex items-center gap-1.5">
             <button
               onClick={toggle}

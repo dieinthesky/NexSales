@@ -12,8 +12,8 @@ import type { MetadataRoute } from 'next'
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'NexSales — Smart Sales Platform',
-    short_name: 'NexSales',
+    name: 'CaixaDoBairro — PDV do bairro',
+    short_name: 'CaixaDoBairro',
     description:
       'Plataforma moderna de gestão de vendas, clientes e performance do seu negócio.',
     lang: 'pt-BR',

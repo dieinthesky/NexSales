@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og'
 
 export const runtime = 'edge'
-export const alt = 'NexSales — Smart Sales Platform'
+export const alt = 'CaixaDoBairro — PDV do bairro'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
@@ -83,7 +83,7 @@ export default function OgImage() {
                 color: 'white',
               }}
             >
-              N
+              C
             </div>
             <span
               style={{
@@ -93,7 +93,7 @@ export default function OgImage() {
                 letterSpacing: '-0.5px',
               }}
             >
-              NexSales
+              CaixaDoBairro
             </span>
           </div>
 

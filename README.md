@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="public/icon-192.png" alt="NexSales" width="96" height="96" />
+<img src="public/icon-192.png" alt="CaixaDoBairro" width="96" height="96" />
 
-# NexSales
+# CaixaDoBairro
 
 **PDV e gestão de vendas para pequenos comércios — offline-first, PWA + app Windows.**
 
 [![CI](https://github.com/MatheusBrazolin/vendas-app/actions/workflows/ci.yml/badge.svg)](https://github.com/MatheusBrazolin/vendas-app/actions/workflows/ci.yml)
-[![Live demo](https://img.shields.io/badge/demo-nexsales--pdv.vercel.app-6d28d9?style=flat-square)](https://nexsales-pdv.vercel.app)
+[![Live demo](https://img.shields.io/badge/demo-nex--sales.vercel.app-6d28d9?style=flat-square)](https://nex-sales.vercel.app)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Auth-3ecf8e?style=flat-square&logo=supabase)](https://supabase.com/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
@@ -144,7 +144,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=465
 SMTP_USER=seuemail@gmail.com
 SMTP_PASS=            # senha de app do Gmail, não a senha normal
-SMTP_FROM=NexSales <seuemail@gmail.com>
+SMTP_FROM=CaixaDoBairro <seuemail@gmail.com>
 REPORT_EMAIL=         # destinatário(s) fixo(s), separados por vírgula
 ```
 
@@ -171,7 +171,7 @@ No painel do Supabase, abra o **SQL Editor** e execute os arquivos em `supabase/
 
 ## 🌐 Deploy
 
-O app está em produção em **[nexsales-pdv.vercel.app](https://nexsales-pdv.vercel.app)**. As funções serverless rodam em `gru1` (São Paulo) para manter latência baixa junto ao Supabase em `sa-east-1`.
+O app está em produção em **[nex-sales.vercel.app](https://nex-sales.vercel.app)**. As funções serverless rodam em `gru1` (São Paulo) para manter latência baixa junto ao Supabase em `sa-east-1`.
 
 Para subir sua própria instância:
 
@@ -193,9 +193,9 @@ Além do acesso pelo navegador, há um **instalador `.exe` para Windows** — id
 npm run desktop
 
 # Apontar para servidor local (PowerShell)
-$env:NEXSALES_APP_URL="http://localhost:3000"; npm run desktop
+$env:CaixaDoBairro_APP_URL="http://localhost:3000"; npm run desktop
 
-# Gerar instalador → instalador/NexSales-Instalador.exe
+# Gerar instalador → instalador/CaixaDoBairro-Instalador.exe
 npm run desktop:build
 ```
 
@@ -204,7 +204,7 @@ npm run desktop:build
 A página **`/configuracoes/baixar`** (menu Administração — visível apenas no desktop e para admins) exibe o botão de download, que aponta para o GitHub Releases:
 
 1. Gere o instalador com `npm run desktop:build`
-2. Crie um **Release** no GitHub e anexe `NexSales-Instalador.exe` como asset
+2. Crie um **Release** no GitHub e anexe `CaixaDoBairro-Instalador.exe` como asset
 3. O botão usa a URL estável do último release; ao publicar uma nova versão com o mesmo nome de arquivo, o download é atualizado automaticamente
 
 Para hospedar em outro lugar, defina `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL`.
@@ -392,4 +392,4 @@ UI e fluxos completos estão mapeados para testes E2E (Playwright) em etapa futu
 
 ## 📜 Licença
 
-[MIT](LICENSE) © [OTM Tech](https://github.com/MatheusBrazolin)
+[MIT](LICENSE) © CaixaDoBairro

@@ -22,7 +22,7 @@ function DashboardMockup() {
         </div>
         <div className="flex-1 mx-2">
           <div className="bg-white/5 rounded-md px-3 py-1 text-[9px] text-white/25 text-center tracking-wide">
-            nexsales.app/dashboard
+            caixadobairro.app/dashboard
           </div>
         </div>
       </div>
@@ -31,8 +31,8 @@ function DashboardMockup() {
       <div className="flex bg-[#0d0c1f]" style={{ minHeight: '240px' }}>
         {/* Sidebar */}
         <div className="w-12 bg-[#09081a] flex flex-col items-center pt-3 gap-2.5 border-r border-white/[0.05] shrink-0">
-          <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center text-white text-[9px] font-black">
-            N
+            <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center text-white text-[9px] font-black">
+            C
           </div>
           <div className="mt-1 flex flex-col gap-2 items-center w-full px-2">
             {[true, false, false, false, false].map((active, i) => (
@@ -160,12 +160,12 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Logo */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/40 ring-1 ring-white/15">
-            <span className="text-white font-extrabold text-base tracking-tight select-none">N</span>
+            <span className="text-white font-extrabold text-base tracking-tight select-none">C</span>
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-lg font-bold tracking-tight">NexSales</span>
+            <span className="text-lg font-bold tracking-tight">CaixaDoBairro</span>
             <span className="text-[10px] uppercase tracking-[0.18em] text-purple-300/60">
-              Smart Sales Management
+              PDV do seu mercado
             </span>
           </div>
         </div>
@@ -176,7 +176,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <div className="flex-1 min-w-0 space-y-6 max-w-[230px] xl:max-w-[260px]">
             <div className="space-y-3">
               <h1 className="text-3xl xl:text-[2.2rem] font-bold tracking-tight leading-[1.1]">
-                A próxima geração em{' '}
+                O caixa do{' '}
                 <span
                   style={{
                     backgroundImage: 'linear-gradient(135deg, #c4b5fd 0%, #a78bfa 100%)',
@@ -185,19 +185,19 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
                     backgroundClip: 'text',
                   }}
                 >
-                  gestão de vendas.
+                  seu bairro.
                 </span>
               </h1>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Controle seu negócio em tempo real com inteligência, simplicidade e performance.
+                Vendas, estoque e fiado no mesmo lugar — simples de usar no balcão.
               </p>
             </div>
 
             <ul className="space-y-3.5">
               {[
-                { icon: '📊', title: 'Analytics em tempo real', desc: 'Acompanhe métricas e desempenho instantaneamente.' },
-                { icon: '📦', title: 'Controle de estoque', desc: 'Gerencie produtos e pedidos facilmente.' },
-                { icon: '👥', title: 'Gestão Inteligente', desc: 'Clientes, vendas e relatórios em um só lugar.' },
+                { icon: '📊', title: 'Vendas do dia', desc: 'Acompanhe o movimento do caixa na hora.' },
+                { icon: '📦', title: 'Controle de estoque', desc: 'Produtos, preços e alertas de estoque baixo.' },
+                { icon: '👥', title: 'Clientes e fiado', desc: 'Cadastro, vale e histórico em um só lugar.' },
               ].map((item) => (
                 <li key={item.title} className="flex items-start gap-3">
                   <div className="mt-0.5 h-7 w-7 rounded-lg bg-white/8 border border-white/10 flex items-center justify-center text-sm shrink-0">
@@ -230,7 +230,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
         {/* Footer */}
         <div className="relative z-10 mt-8 text-[11px] text-slate-600">
-          &copy; {new Date().getFullYear()} NexSales &middot; Todos os direitos reservados
+          &copy; {new Date().getFullYear()} CaixaDoBairro &middot; Todos os direitos reservados
         </div>
       </aside>
 
