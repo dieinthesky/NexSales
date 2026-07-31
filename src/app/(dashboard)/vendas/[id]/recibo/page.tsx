@@ -1,7 +1,7 @@
-import { notFound, redirect } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import { getSaleById } from '@/lib/queries/sales'
 import { ReceiptView } from '@/components/sales/receipt-view'
-import { createClient } from '@/lib/supabase/server'
+import { requireAuth } from '@/lib/auth/roles'
 
 export const metadata = {
   title: 'Recibo da venda',
@@ -12,11 +12,8 @@ export default async function ReceiptPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  // requireAuth (não getUser) — no Electron o cookie offline precisa ser aceito
+  await requireAuth()
 
   const { id } = await params
   const sale = await getSaleById(id)

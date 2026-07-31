@@ -77,6 +77,16 @@ jobs:
       - name: Copy standalone assets
         run: node scripts/copy-standalone.mjs
 
+      - name: Smoke-check better-sqlite3 in standalone
+        shell: bash
+        run: |
+          NODE_FILE=".next/standalone/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
+          if [ ! -f "$NODE_FILE" ]; then
+            echo "Missing $NODE_FILE"
+            exit 1
+          fi
+          node -e "require('./.next/standalone/node_modules/better-sqlite3'); console.log('better-sqlite3 ok')"
+
       - name: Package Windows installer
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'

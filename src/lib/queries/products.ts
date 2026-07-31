@@ -31,8 +31,12 @@ export async function getProductsPaged(
   // TCP connection causes the 5-second fallback timer to fire before this
   // catch-block can return SQLite data.
   if (isElectron()) {
-    const { getProductsPaged: sqliteGet } = await import('@/lib/db/queries/products')
-    return sqliteGet(params)
+    try {
+      const { getProductsPaged: sqliteGet } = await import('@/lib/db/queries/products')
+      return sqliteGet(params)
+    } catch (err) {
+      console.warn('[electron] sqlite getProductsPaged failed, falling back to Supabase:', err)
+    }
   }
 
   const supabase = await createClient()
@@ -80,8 +84,12 @@ export async function getProductsPaged(
 
 export async function getLowStock(): Promise<ProductWithCategory[]> {
   if (isElectron()) {
-    const { getLowStock: sqliteGet } = await import('@/lib/db/queries/products')
-    return sqliteGet()
+    try {
+      const { getLowStock: sqliteGet } = await import('@/lib/db/queries/products')
+      return sqliteGet()
+    } catch (err) {
+      console.warn('[electron] sqlite getLowStock failed, falling back to Supabase:', err)
+    }
   }
 
   const supabase = await createClient()
@@ -101,8 +109,12 @@ export async function getLowStock(): Promise<ProductWithCategory[]> {
 
 export async function getCategories(): Promise<Category[]> {
   if (isElectron()) {
-    const { getCategories: sqliteGet } = await import('@/lib/db/queries/products')
-    return sqliteGet()
+    try {
+      const { getCategories: sqliteGet } = await import('@/lib/db/queries/products')
+      return sqliteGet()
+    } catch (err) {
+      console.warn('[electron] sqlite getCategories failed, falling back to Supabase:', err)
+    }
   }
 
   const supabase = await createClient()

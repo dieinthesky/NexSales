@@ -7,8 +7,12 @@ import { isElectron } from '@/lib/db/client'
 
 export async function getDashboardMetrics() {
   if (isElectron()) {
-    const { getDashboardMetrics: sqliteGet } = await import('@/lib/db/queries/dashboard')
-    return sqliteGet()
+    try {
+      const { getDashboardMetrics: sqliteGet } = await import('@/lib/db/queries/dashboard')
+      return sqliteGet()
+    } catch (err) {
+      console.warn('[electron] sqlite getDashboardMetrics failed, falling back to Supabase:', err)
+    }
   }
 
   const supabase = await createClient()
@@ -62,8 +66,12 @@ export async function getDashboardMetrics() {
 
 export async function getSalesLast30Days() {
   if (isElectron()) {
-    const { getSalesLast30Days: sqliteGet } = await import('@/lib/db/queries/dashboard')
-    return sqliteGet()
+    try {
+      const { getSalesLast30Days: sqliteGet } = await import('@/lib/db/queries/dashboard')
+      return sqliteGet()
+    } catch (err) {
+      console.warn('[electron] sqlite getSalesLast30Days failed, falling back to Supabase:', err)
+    }
   }
 
   const supabase = await createClient()

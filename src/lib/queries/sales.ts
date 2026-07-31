@@ -26,8 +26,12 @@ export async function getSalesPaged(
   params: SalesListParams = {},
 ): Promise<SalesListResult> {
   if (isElectron()) {
-    const { getSalesPaged: sqliteGet } = await import('@/lib/db/queries/sales')
-    return sqliteGet(params)
+    try {
+      const { getSalesPaged: sqliteGet } = await import('@/lib/db/queries/sales')
+      return sqliteGet(params)
+    } catch (err) {
+      console.warn('[electron] sqlite getSalesPaged failed, falling back to Supabase:', err)
+    }
   }
 
   const supabase = await createClient()

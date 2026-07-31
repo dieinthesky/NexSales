@@ -1,5 +1,23 @@
 import type { NxDB } from './client'
 
+function tableColumns(db: NxDB, table: string): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]
+  return new Set(rows.map((r) => r.name))
+}
+
+/** Add missing columns on existing userData DBs (CREATE TABLE IF NOT EXISTS won't). */
+function migrateSchema(db: NxDB): void {
+  const products = tableColumns(db, 'products')
+  if (!products.has('track_stock')) {
+    db.exec(`ALTER TABLE products ADD COLUMN track_stock INTEGER NOT NULL DEFAULT 1`)
+  }
+
+  const saleItems = tableColumns(db, 'sale_items')
+  if (!saleItems.has('item_description')) {
+    db.exec(`ALTER TABLE sale_items ADD COLUMN item_description TEXT`)
+  }
+}
+
 export function initSchema(db: NxDB): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -19,6 +37,7 @@ export function initSchema(db: NxDB): void {
       min_stock        INTEGER NOT NULL DEFAULT 0,
       category_id      TEXT,
       is_active        INTEGER NOT NULL DEFAULT 1,
+      track_stock      INTEGER NOT NULL DEFAULT 1,
       created_at       TEXT NOT NULL,
       updated_at       TEXT NOT NULL
     );
@@ -44,12 +63,13 @@ export function initSchema(db: NxDB): void {
     );
 
     CREATE TABLE IF NOT EXISTS sale_items (
-      id          TEXT PRIMARY KEY,
-      sale_id     TEXT NOT NULL,
-      product_id  TEXT NOT NULL,
-      quantity    INTEGER NOT NULL,
-      unit_price  REAL NOT NULL,
-      subtotal    REAL NOT NULL,
+      id                 TEXT PRIMARY KEY,
+      sale_id            TEXT NOT NULL,
+      product_id         TEXT NOT NULL,
+      quantity           INTEGER NOT NULL,
+      unit_price         REAL NOT NULL,
+      subtotal           REAL NOT NULL,
+      item_description   TEXT,
       FOREIGN KEY (sale_id)    REFERENCES sales(id)    ON DELETE CASCADE,
       FOREIGN KEY (product_id) REFERENCES products(id)
     );
@@ -90,9 +110,12 @@ export function initSchema(db: NxDB): void {
     CREATE INDEX IF NOT EXISTS idx_sync_queue_status       ON sync_queue(status);
   `)
 
-  // customer_balances view: computes fiado debt from local data.
+  migrateSchema(db)
+
+  // Refresh view definition on every boot (IF NOT EXISTS keeps stale SQL).
+  db.exec(`DROP VIEW IF EXISTS customer_balances`)
   db.exec(`
-    CREATE VIEW IF NOT EXISTS customer_balances AS
+    CREATE VIEW customer_balances AS
     SELECT
       c.id,
       c.full_name,

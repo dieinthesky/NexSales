@@ -83,8 +83,8 @@ function _upsertProducts(rows: Product[]): void {
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO products
      (id, code, name, description, sale_price, cost_price, stock_quantity, min_stock,
-      category_id, is_active, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      category_id, is_active, track_stock, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   for (const r of rows) {
     stmt.run(
@@ -92,6 +92,7 @@ function _upsertProducts(rows: Product[]): void {
       r.sale_price, r.cost_price ?? null,
       r.stock_quantity, r.min_stock,
       r.category_id ?? null, r.is_active ? 1 : 0,
+      r.track_stock === false ? 0 : 1,
       r.created_at, r.updated_at,
     )
   }
@@ -124,10 +125,16 @@ function _upsertSales(rows: Sale[]): void {
 function _upsertSaleItems(rows: SaleItem[]): void {
   const db: NxDB = getDb()
   const stmt = db.prepare(
-    `INSERT OR REPLACE INTO sale_items (id, sale_id, product_id, quantity, unit_price, subtotal)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO sale_items
+     (id, sale_id, product_id, quantity, unit_price, subtotal, item_description)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
-  for (const r of rows) stmt.run(r.id, r.sale_id, r.product_id, r.quantity, r.unit_price, r.subtotal)
+  for (const r of rows) {
+    stmt.run(
+      r.id, r.sale_id, r.product_id, r.quantity, r.unit_price, r.subtotal,
+      r.item_description ?? null,
+    )
+  }
 }
 
 function _upsertDebtPayments(rows: DebtPayment[]): void {
