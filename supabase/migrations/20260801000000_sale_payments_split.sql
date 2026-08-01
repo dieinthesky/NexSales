@@ -179,3 +179,6 @@ $$;
 GRANT EXECUTE ON FUNCTION public.create_sale_with_items(
   public.payment_method, text, jsonb, uuid, uuid, jsonb
 ) TO authenticated;
+
+-- Atualiza o cache do PostgREST (senão o app ainda “não acha” a função).
+NOTIFY pgrst, 'reload schema';

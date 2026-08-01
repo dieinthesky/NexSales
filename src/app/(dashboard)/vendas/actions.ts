@@ -52,43 +52,74 @@ export interface CreateSaleResult {
   code?: CreateSaleErrorCode
 }
 
+function mapCreateSaleError(msg: string): CreateSaleResult {
+  if (msg.includes('insufficient_stock')) {
+    const product = msg.split(':')[1]?.trim() ?? 'produto'
+    return { error: `Estoque insuficiente para: ${product}`, code: 'insufficient_stock' }
+  }
+  if (msg.includes('product_not_found')) {
+    return { error: 'Produto não encontrado.', code: 'product_not_found' }
+  }
+  if (msg.includes('empty_cart')) {
+    return { error: 'Adicione pelo menos um produto.', code: 'empty_cart' }
+  }
+  if (msg.includes('unauthenticated')) {
+    return { error: 'Sessão expirada. Faça login novamente.', code: 'unauthenticated' }
+  }
+  if (msg.includes('customer_required')) {
+    return { error: 'Selecione um cliente para venda fiada.', code: 'customer_required' }
+  }
+  if (msg.includes('payment_mismatch') || msg.includes('invalid_payment')) {
+    return {
+      error: 'Soma das formas de pagamento deve fechar o total da venda.',
+      code: 'payment_mismatch',
+    }
+  }
+  if (msg.includes('Could not find the function') || msg.includes('schema cache')) {
+    return {
+      error:
+        'Falta atualizar o banco (SQL do pagamento misto). Rode a migration no Supabase e tente de novo.',
+      code: 'unknown',
+    }
+  }
+  return { error: msg, code: 'unknown' }
+}
+
 export async function createSale(input: CreateSaleInput): Promise<CreateSaleResult> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase.rpc('create_sale_with_items', {
+  const baseArgs = {
     p_payment_method: input.payment_method,
     p_notes: input.notes || null,
     p_items: input.items as unknown as Json,
     p_client_uuid: input.client_uuid ?? null,
     p_customer_id: input.customer_id ?? null,
+  }
+
+  // Tenta a RPC nova (com p_payments). Se o Supabase ainda não tem a migration,
+  // cai na assinatura antiga — só funciona bem com 1 forma de pagamento.
+  let { data, error } = await supabase.rpc('create_sale_with_items', {
+    ...baseArgs,
     p_payments: (input.payments ?? null) as unknown as Json,
   })
 
-  if (error) {
-    const msg = error.message
-    if (msg.includes('insufficient_stock')) {
-      const product = msg.split(':')[1]?.trim() ?? 'produto'
-      return { error: `Estoque insuficiente para: ${product}`, code: 'insufficient_stock' }
-    }
-    if (msg.includes('product_not_found')) {
-      return { error: 'Produto não encontrado.', code: 'product_not_found' }
-    }
-    if (msg.includes('empty_cart')) {
-      return { error: 'Adicione pelo menos um produto.', code: 'empty_cart' }
-    }
-    if (msg.includes('unauthenticated')) {
-      return { error: 'Sessão expirada. Faça login novamente.', code: 'unauthenticated' }
-    }
-    if (msg.includes('customer_required')) {
-      return { error: 'Selecione um cliente para venda fiada.', code: 'customer_required' }
-    }
-    if (msg.includes('payment_mismatch') || msg.includes('invalid_payment')) {
+  if (
+    error &&
+    (error.message.includes('Could not find the function') ||
+      error.message.includes('schema cache'))
+  ) {
+    if ((input.payments?.length ?? 0) > 1) {
       return {
-        error: 'Soma das formas de pagamento deve fechar o total da venda.',
-        code: 'payment_mismatch',
+        error:
+          'Pagamento misto precisa do SQL no Supabase. Abra o SQL Editor e rode a migration 20260801000000_sale_payments_split.sql',
+        code: 'unknown',
       }
     }
-    return { error: error.message, code: 'unknown' }
+    ;({ data, error } = await supabase.rpc('create_sale_with_items', baseArgs))
+  }
+
+  if (error) {
+    return mapCreateSaleError(error.message)
   }
 
   if (typeof data !== 'string' || !data) {
