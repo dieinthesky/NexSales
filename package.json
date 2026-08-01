@@ -36,6 +36,7 @@
     "dexie": "^4.4.3",
     "electron-updater": "^6.6.2",
     "framer-motion": "^12.40.0",
+    "html5-qrcode": "^2.3.8",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
     "nodemailer": "^8.0.10",

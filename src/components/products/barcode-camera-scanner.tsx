@@ -10,8 +10,13 @@ interface BarcodeCameraScannerProps {
   onDetect: (code: string) => void
 }
 
-function supportsBarcodeDetector(): boolean {
-  return typeof window !== 'undefined' && typeof window.BarcodeDetector === 'function'
+/** Safari iOS / Chrome / etc. — precisa de HTTPS + getUserMedia. */
+function canUseCamera(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof navigator !== 'undefined' &&
+    Boolean(navigator.mediaDevices?.getUserMedia)
+  )
 }
 
 export function BarcodeCameraScanner({
@@ -19,9 +24,11 @@ export function BarcodeCameraScanner({
   onClose,
   onDetect,
 }: BarcodeCameraScannerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const rafRef = useRef<number | null>(null)
+  const hostRef = useRef<HTMLDivElement>(null)
+  const scannerRef = useRef<{
+    stop: () => Promise<void>
+    clear: () => Promise<void>
+  } | null>(null)
   const lastCodeRef = useRef('')
   const lastAtRef = useRef(0)
   const onDetectRef = useRef(onDetect)
@@ -29,20 +36,29 @@ export function BarcodeCameraScanner({
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
 
-  const stop = useCallback(() => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current)
-      rafRef.current = null
+  const stop = useCallback(async () => {
+    const scanner = scannerRef.current
+    scannerRef.current = null
+    if (!scanner) {
+      setReady(false)
+      return
     }
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-    if (videoRef.current) videoRef.current.srcObject = null
+    try {
+      await scanner.stop()
+    } catch {
+      // already stopped
+    }
+    try {
+      await scanner.clear()
+    } catch {
+      // ignore
+    }
     setReady(false)
   }, [])
 
   useEffect(() => {
     if (!open) {
-      stop()
+      void stop()
       setError(null)
       return
     }
@@ -50,75 +66,86 @@ export function BarcodeCameraScanner({
     let cancelled = false
 
     async function start() {
-      if (!supportsBarcodeDetector()) {
-        setError('Câmera com leitura automática não disponível neste navegador. Use Chrome no Android ou digite o código.')
+      if (!canUseCamera()) {
+        setError('Câmera não disponível. Use HTTPS e permita o acesso, ou digite o código.')
         return
       }
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setError('Câmera não disponível neste dispositivo.')
-        return
-      }
+      if (!hostRef.current) return
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
+        const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
+
+        // Limpa DOM residual se reabrir.
+        hostRef.current.innerHTML = ''
+        const readerId = 'visita-barcode-reader'
+        const mount = document.createElement('div')
+        mount.id = readerId
+        mount.className = 'h-full w-full'
+        hostRef.current.appendChild(mount)
+
+        const scanner = new Html5Qrcode(readerId, {
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.QR_CODE,
+          ],
+          verbose: false,
         })
+        scannerRef.current = scanner
+
+        await scanner.start(
+          { facingMode: 'environment' },
+          {
+            fps: 8,
+            qrbox: (viewW, viewH) => {
+              const width = Math.floor(Math.min(viewW * 0.88, 360))
+              const height = Math.floor(Math.min(viewH * 0.32, 160))
+              return { width, height }
+            },
+            aspectRatio: 1.333,
+            disableFlip: false,
+          },
+          (decoded) => {
+            const value = decoded?.trim()
+            if (!value) return
+            const now = Date.now()
+            if (value === lastCodeRef.current && now - lastAtRef.current < 2500) return
+            lastCodeRef.current = value
+            lastAtRef.current = now
+            onDetectRef.current(value)
+          },
+          () => {
+            // frame sem código — ok
+          },
+        )
+
         if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop())
+          await stop()
           return
         }
-        streamRef.current = stream
-        const video = videoRef.current
-        if (!video) return
-        video.srcObject = stream
-        await video.play()
         setReady(true)
         setError(null)
-
-        const detector = new window.BarcodeDetector!({
-          formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'qr_code'],
-        })
-
-        const tick = async () => {
-          if (cancelled || !videoRef.current) return
-          try {
-            if (videoRef.current.readyState >= 2) {
-              const codes = await detector.detect(videoRef.current)
-              const value = codes[0]?.rawValue?.trim()
-              const now = Date.now()
-              if (
-                value &&
-                (value !== lastCodeRef.current || now - lastAtRef.current > 2500)
-              ) {
-                lastCodeRef.current = value
-                lastAtRef.current = now
-                onDetectRef.current(value)
-              }
-            }
-          } catch {
-            // frame miss — keep looping
-          }
-          rafRef.current = requestAnimationFrame(() => {
-            void tick()
-          })
+      } catch (err) {
+        const message = err instanceof Error ? err.message : ''
+        if (/NotAllowedError|Permission|denied/i.test(message)) {
+          setError('Permissão da câmera negada. No iPhone: Ajustes → Safari → Câmera → Permitir, e tente de novo.')
+        } else if (/NotFoundError|DevicesNotFound/i.test(message)) {
+          setError('Nenhuma câmera encontrada neste aparelho.')
+        } else {
+          setError('Não foi possível abrir a câmera. Permita o acesso no Safari ou digite o código.')
         }
-        rafRef.current = requestAnimationFrame(() => {
-          void tick()
-        })
-      } catch {
-        setError('Não foi possível abrir a câmera. Permita o acesso ou digite o código.')
+        setReady(false)
       }
     }
 
     void start()
     return () => {
       cancelled = true
-      stop()
+      void stop()
     }
   }, [open, stop])
 
@@ -136,7 +163,10 @@ export function BarcodeCameraScanner({
           variant="ghost"
           size="icon"
           className="text-white hover:bg-white/10"
-          onClick={onClose}
+          onClick={() => {
+            void stop()
+            onClose()
+          }}
           aria-label="Fechar câmera"
         >
           <X className="h-5 w-5" />
@@ -144,16 +174,7 @@ export function BarcodeCameraScanner({
       </div>
 
       <div className="relative mx-4 flex-1 overflow-hidden rounded-2xl bg-slate-900">
-        <video
-          ref={videoRef}
-          className="h-full w-full object-cover"
-          playsInline
-          muted
-          autoPlay
-        />
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="h-36 w-[85%] max-w-sm rounded-xl border-2 border-emerald-400/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
-        </div>
+        <div ref={hostRef} className="h-full w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
         {!ready && !error && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-white/80">
             Abrindo câmera…
@@ -168,12 +189,20 @@ export function BarcodeCameraScanner({
         </div>
       ) : (
         <p className="px-4 py-3 text-center text-xs text-white/60">
-          Ao ler, o código preenche sozinho. Você pode fechar e digitar se preferir.
+          No iPhone, aceite o acesso à câmera quando o Safari pedir. Pode fechar e digitar se preferir.
         </p>
       )}
 
       <div className="px-4 pb-6 pt-2">
-        <Button type="button" className="w-full" variant="secondary" onClick={onClose}>
+        <Button
+          type="button"
+          className="w-full"
+          variant="secondary"
+          onClick={() => {
+            void stop()
+            onClose()
+          }}
+        >
           Digitar código
         </Button>
       </div>
@@ -182,5 +211,5 @@ export function BarcodeCameraScanner({
 }
 
 export function canUseBarcodeCamera(): boolean {
-  return supportsBarcodeDetector()
+  return canUseCamera()
 }
