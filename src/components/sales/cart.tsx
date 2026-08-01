@@ -48,10 +48,12 @@ export function Cart({
   if (items.length === 0) {
     if (variant === 'cashier') {
       return (
-        <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center px-6">
-          <ShoppingCart className="h-14 w-14 mb-4 text-white/20" />
-          <p className="text-lg font-semibold text-white/50">Aguardando itens</p>
-          <p className="mt-1 text-sm text-white/35">
+        <div className="flex h-full min-h-[160px] flex-col items-center justify-center bg-[#f4f6f8] px-6 text-center">
+          <ShoppingCart className="mb-3 h-12 w-12 text-slate-300" />
+          <p className="text-base font-bold uppercase tracking-wide text-slate-500">
+            Cupom vazio
+          </p>
+          <p className="mt-1 text-sm text-slate-400">
             Bipe o código ou digite o nome do produto
           </p>
         </div>
@@ -67,12 +69,12 @@ export function Cart({
 
   if (variant === 'cashier') {
     return (
-      <div className="flex h-full min-h-0 flex-col">
-        <div className="grid grid-cols-[48px_minmax(0,1fr)_72px_100px_110px_44px] gap-2 border-b border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-white/40">
-          <span>#</span>
-          <span>Produto</span>
+      <div className="flex h-full min-h-0 flex-col bg-[#f4f6f8] text-slate-900">
+        <div className="grid shrink-0 grid-cols-[40px_minmax(0,1fr)_56px_88px_96px_36px] gap-1 border-b-2 border-slate-300 bg-slate-200/90 px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-600 sm:grid-cols-[48px_minmax(0,1fr)_64px_96px_104px_40px] sm:gap-2 sm:px-3 sm:text-[11px]">
+          <span>Seq</span>
+          <span>Descrição</span>
           <span className="text-center">Qtd</span>
-          <span className="text-right">Unit.</span>
+          <span className="text-right">Vlr Un</span>
           <span className="text-right">Total</span>
           <span />
         </div>
@@ -87,13 +89,21 @@ export function Cart({
             return (
               <div
                 key={item.product.id}
-                className={`grid grid-cols-[48px_minmax(0,1fr)_72px_100px_110px_44px] items-center gap-2 border-b border-white/5 px-3 py-2.5 ${
-                  isLatest ? 'bg-emerald-500/15' : 'hover:bg-white/[0.03]'
+                className={`grid grid-cols-[40px_minmax(0,1fr)_56px_88px_96px_36px] items-center gap-1 border-b border-slate-200 px-2 py-2 sm:grid-cols-[48px_minmax(0,1fr)_64px_96px_104px_40px] sm:gap-2 sm:px-3 sm:py-2.5 ${
+                  isLatest
+                    ? 'bg-amber-100 ring-1 ring-inset ring-amber-300/80'
+                    : 'bg-white hover:bg-slate-50'
                 }`}
               >
-                <span className="tabular-nums text-sm text-white/40">{index}</span>
+                <span className="tabular-nums text-sm font-semibold text-slate-500">
+                  {String(index).padStart(3, '0')}
+                </span>
                 <div className="min-w-0">
-                  <p className={`truncate font-semibold ${isLatest ? 'text-white text-base' : 'text-white/90 text-sm'}`}>
+                  <p
+                    className={`truncate font-bold ${
+                      isLatest ? 'text-base text-slate-900' : 'text-sm text-slate-800'
+                    }`}
+                  >
                     {item.product.name}
                   </p>
                   {!item.product.track_stock && (
@@ -102,29 +112,29 @@ export function Cart({
                       placeholder="Descrição do item..."
                       value={item.itemDescription ?? ''}
                       onChange={(e) => onUpdateDescription(item.product.id, e.target.value)}
-                      className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/80 placeholder:text-white/30 focus:border-emerald-400/50 focus:outline-none"
+                      className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-red-400 focus:outline-none"
                     />
                   )}
-                  <p className="mt-0.5 truncate text-[11px] text-white/35">
+                  <p className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
                     Cód. {item.product.code}
                   </p>
                 </div>
                 <div className="flex items-center justify-center gap-0.5">
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-200 hover:text-slate-800 disabled:opacity-30"
                     onClick={() => onUpdateQty(item.product.id, item.quantity - 1)}
                     disabled={item.quantity <= 1}
                     aria-label="Diminuir"
                   >
                     <Minus className="h-3.5 w-3.5" />
                   </button>
-                  <span className="w-7 text-center text-sm font-bold tabular-nums text-white">
+                  <span className="w-6 text-center text-sm font-black tabular-nums text-slate-900">
                     {item.quantity}
                   </span>
                   <button
                     type="button"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded text-white/60 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-200 hover:text-slate-800 disabled:opacity-30"
                     onClick={() => onUpdateQty(item.product.id, item.quantity + 1)}
                     disabled={
                       item.product.track_stock &&
@@ -151,7 +161,7 @@ export function Cart({
                           if (e.key === 'Enter') commitEdit(item.product.id)
                           if (e.key === 'Escape') setEditingId(null)
                         }}
-                        className="h-7 w-20 border-emerald-400/40 bg-white/10 px-1.5 text-xs text-white"
+                        className="h-7 w-20 border-red-400/60 bg-white px-1.5 text-xs text-slate-900"
                       />
                       <button
                         type="button"
@@ -159,7 +169,7 @@ export function Cart({
                           e.preventDefault()
                           commitEdit(item.product.id)
                         }}
-                        className="text-emerald-400"
+                        className="text-emerald-600"
                         aria-label="Confirmar preço"
                       >
                         <Check className="h-3.5 w-3.5" />
@@ -169,19 +179,23 @@ export function Cart({
                     <button
                       type="button"
                       onClick={() => startEdit(item)}
-                      className="inline-flex items-center gap-1 text-sm tabular-nums text-white/70 hover:text-emerald-300"
+                      className="inline-flex items-center gap-1 text-sm font-semibold tabular-nums text-slate-700 hover:text-red-700"
                     >
                       {formatCurrency(effectivePrice)}
                       <Pencil className="h-3 w-3 opacity-50" />
                     </button>
                   )}
                 </div>
-                <span className={`text-right font-bold tabular-nums ${isLatest ? 'text-lg text-emerald-300' : 'text-sm text-white'}`}>
+                <span
+                  className={`text-right font-black tabular-nums ${
+                    isLatest ? 'text-base text-red-700 sm:text-lg' : 'text-sm text-slate-900'
+                  }`}
+                >
                   {formatCurrency(lineTotal)}
                 </span>
                 <button
                   type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded text-red-400/80 hover:bg-red-500/15 hover:text-red-300"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded text-red-600 hover:bg-red-50"
                   onClick={() => onRemove(item.product.id)}
                   aria-label={`Remover ${item.product.name}`}
                 >
