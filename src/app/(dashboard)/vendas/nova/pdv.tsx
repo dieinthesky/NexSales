@@ -8,32 +8,22 @@ import {
   Loader2,
   CheckCircle2,
   Search,
-  CreditCard,
-  Banknote,
   CloudOff,
   Printer,
   X,
-  UserRound,
-  UserPlus,
-  Phone,
   Tag,
   ArrowLeft,
   Keyboard,
-  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
 import { ProductSearch } from '@/components/sales/product-search'
 import { Cart } from '@/components/sales/cart'
+import {
+  PaymentCheckout,
+  allocatePayments,
+  type InformedPayment,
+  type TenderMethod,
+} from '@/components/sales/payment-checkout'
 import { createSale } from '../actions'
 import { searchCustomers, createCustomer } from '../../clientes/actions'
 import { searchCustomersOffline } from '@/lib/offline/customers-repo'
@@ -55,29 +45,8 @@ interface CompletedSale {
   paymentLabel: string
 }
 
-interface PayLine {
-  id: string
-  method: PaymentMethod | ''
-  amountRaw: string
-}
-
-type TenderMethod = Exclude<PaymentMethod, 'mixed'>
-
-const PAYMENT_OPTIONS: { value: TenderMethod; label: string }[] = [
-  { value: 'cash', label: 'Dinheiro' },
-  { value: 'pix', label: 'PIX' },
-  { value: 'credit', label: 'Cartão de Crédito' },
-  { value: 'debit', label: 'Cartão de Débito' },
-  { value: 'fiado', label: 'Fiado' },
-]
-
-function newPayLine(amountRaw = ''): PayLine {
-  return { id: crypto.randomUUID(), method: '', amountRaw }
-}
-
-function parseMoney(raw: string): number {
-  const n = parseFloat(raw.replace(',', '.'))
-  return Number.isFinite(n) ? n : NaN
+function round2(n: number) {
+  return Math.round(n * 100) / 100
 }
 
 interface PDVProps {
@@ -87,13 +56,12 @@ interface PDVProps {
 export function PDV({ avulsoProduct }: PDVProps) {
   const router = useRouter()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-  const [payLines, setPayLines] = useState<PayLine[]>([newPayLine()])
+  const [informedPays, setInformedPays] = useState<InformedPayment[]>([])
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [offlineSale, setOfflineSale] = useState<OfflineSaleConfirmation | null>(null)
   const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null)
   const [triedSubmit, setTriedSubmit] = useState(false)
-  const [cashReceivedRaw, setCashReceivedRaw] = useState('')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [clock, setClock] = useState('')
 
@@ -131,26 +99,11 @@ export function PDV({ avulsoProduct }: PDVProps) {
   )
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
 
-  const parsedPayLines = payLines.map((line) => ({
-    ...line,
-    amount: parseMoney(line.amountRaw),
-  }))
-  const payAllocated = parsedPayLines.reduce(
-    (sum, line) => sum + (Number.isFinite(line.amount) && line.amount > 0 ? line.amount : 0),
-    0,
-  )
-  const payRemaining = Math.round((total - payAllocated) * 100) / 100
-  const hasFiadoLine = parsedPayLines.some((l) => l.method === 'fiado')
-  const cashPortion = parsedPayLines
-    .filter((l) => l.method === 'cash' && Number.isFinite(l.amount) && l.amount > 0)
-    .reduce((sum, l) => sum + l.amount, 0)
-  const paymentMissing = parsedPayLines.every((l) => !l.method)
+  const paidInformed = round2(informedPays.reduce((s, r) => s + r.amount, 0))
+  const missingPay = round2(Math.max(0, total - paidInformed))
+  const changeDue = round2(Math.max(0, paidInformed - total))
+  const hasFiadoLine = informedPays.some((l) => l.method === 'fiado')
   const customerMissing = hasFiadoLine && !selectedCustomer
-
-  const cashReceived = cashReceivedRaw.trim() ? parseMoney(cashReceivedRaw) : NaN
-  const hasCashEntered = !Number.isNaN(cashReceived)
-  const change = hasCashEntered ? cashReceived - cashPortion : 0
-  const cashShort = cashPortion > 0 && hasCashEntered && cashReceived < cashPortion - 0.001
 
   function paymentLabelFromLines(
     lines: { method: PaymentMethod | ''; amount: number }[],
@@ -292,22 +245,17 @@ export function PDV({ avulsoProduct }: PDVProps) {
   function buildPayments():
     | { header: PaymentMethod; lines: { method: TenderMethod; amount: number }[]; label: string }
     | { error: string } {
-    const lines = parsedPayLines
-      .filter((l) => l.method && l.method !== 'mixed' && Number.isFinite(l.amount) && l.amount > 0)
-      .map((l) => ({ method: l.method as TenderMethod, amount: Math.round(l.amount * 100) / 100 }))
-
-    if (lines.length === 0) {
-      return { error: 'Selecione o método de pagamento' }
+    if (informedPays.length === 0) {
+      return { error: 'Informe ao menos uma forma de pagamento' }
+    }
+    if (missingPay > 0.009) {
+      return { error: `Ainda falta ${formatCurrency(missingPay)}` }
     }
 
-    const sum = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100
-    if (Math.abs(sum - total) > 0.009) {
-      return {
-        error:
-          payRemaining > 0
-            ? `Ainda falta alocar ${formatCurrency(payRemaining)}`
-            : `Pagamentos passam do total em ${formatCurrency(Math.abs(payRemaining))}`,
-      }
+    const lines = allocatePayments(informedPays, total)
+    const sum = round2(lines.reduce((s, l) => s + l.amount, 0))
+    if (lines.length === 0 || Math.abs(sum - total) > 0.009) {
+      return { error: 'Pagamentos não fecham o total da venda' }
     }
 
     const fiadoCount = lines.filter((l) => l.method === 'fiado').length
@@ -316,9 +264,6 @@ export function PDV({ avulsoProduct }: PDVProps) {
     }
     if (fiadoCount > 0 && !selectedCustomer) {
       return { error: 'Selecione um cliente para a venda fiada' }
-    }
-    if (cashPortion > 0 && hasCashEntered && cashShort) {
-      return { error: 'Valor em dinheiro recebido é menor que a parte em dinheiro' }
     }
 
     const header: PaymentMethod = lines.length > 1 ? 'mixed' : lines[0].method
@@ -457,9 +402,8 @@ export function PDV({ avulsoProduct }: PDVProps) {
 
   function resetForm() {
     setCartItems([])
-    setPayLines([newPayLine()])
+    setInformedPays([])
     setNotes('')
-    setCashReceivedRaw('')
     setTriedSubmit(false)
     setCheckoutOpen(false)
     setSelectedCustomer(null)
@@ -481,66 +425,12 @@ export function PDV({ avulsoProduct }: PDVProps) {
       return
     }
     setCompletedSale(null)
-    setPayLines([newPayLine(total.toFixed(2).replace('.', ','))])
-    setCashReceivedRaw('')
+    setInformedPays([])
     setTriedSubmit(false)
     setCheckoutOpen(true)
   }
 
-  function updatePayLine(id: string, patch: Partial<PayLine>) {
-    setPayLines((prev) => {
-      if (patch.method === 'fiado') {
-        return [
-          {
-            id,
-            method: 'fiado',
-            amountRaw: total.toFixed(2).replace('.', ','),
-          },
-        ]
-      }
-
-      return prev.map((line) => {
-        if (line.id !== id) return line
-        const next = { ...line, ...patch }
-        if (
-          patch.method &&
-          !line.method &&
-          (!line.amountRaw.trim() || !(parseMoney(line.amountRaw) > 0))
-        ) {
-          const others = prev
-            .filter((l) => l.id !== id)
-            .reduce((s, l) => {
-              const a = parseMoney(l.amountRaw)
-              return s + (Number.isFinite(a) && a > 0 ? a : 0)
-            }, 0)
-          const rest = Math.max(0, Math.round((total - others) * 100) / 100)
-          next.amountRaw = rest.toFixed(2).replace('.', ',')
-        }
-        return next
-      })
-    })
-  }
-
-  function addPayLine() {
-    if (hasFiadoLine) {
-      toast.error('Fiado não pode misturar com outras formas')
-      return
-    }
-    if (payRemaining <= 0) {
-      toast.error('O total já está coberto')
-      return
-    }
-    setPayLines((prev) => [
-      ...prev,
-      newPayLine(payRemaining.toFixed(2).replace('.', ',')),
-    ])
-  }
-
-  function removePayLine(id: string) {
-    setPayLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.id !== id)))
-  }
-
-  const canSubmit = !isSubmitting && cartItems.length > 0
+  const canSubmit = !isSubmitting && cartItems.length > 0 && missingPay < 0.01
   const lastItem = cartItems[cartItems.length - 1]
   const lastLineTotal = lastItem
     ? (lastItem.customPrice ?? lastItem.product.sale_price) * lastItem.quantity
@@ -552,10 +442,11 @@ export function PDV({ avulsoProduct }: PDVProps) {
       const typing =
         tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable
 
-      if (e.key === 'F10') {
+      // F7 = fluxo Trevo (abrir / confirmar). F10 também funciona.
+      if (e.key === 'F7' || e.key === 'F10') {
         e.preventDefault()
         if (checkoutOpen) {
-          if (canSubmit) void handleSubmit()
+          void handleSubmit()
         } else {
           openCheckout()
         }
@@ -574,7 +465,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state intentionally
-  }, [checkoutOpen, canSubmit, cartItems.length, avulsoProduct])
+  }, [checkoutOpen, canSubmit, cartItems.length, avulsoProduct, missingPay, informedPays])
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#07111f] text-white font-[family-name:var(--font-poppins),sans-serif]">
@@ -666,7 +557,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
               )}
               <span className="inline-flex items-center gap-1.5 text-[11px] text-white/35">
                 <Keyboard className="h-3 w-3" />
-                F10 finalizar · Esc fechar pagamento
+                F7 / F10 encerrar · F4 avulso
               </span>
             </div>
           </div>
@@ -720,20 +611,6 @@ export function PDV({ avulsoProduct }: PDVProps) {
               </p>
             </div>
 
-            {cashPortion > 0 && hasCashEntered && (
-              <div
-                className={`rounded-2xl px-4 py-4 ${
-                  cashShort ? 'bg-red-600' : 'bg-[#10233a] ring-1 ring-white/10'
-                }`}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
-                  {cashShort ? 'Falta receber' : 'Troco'}
-                </p>
-                <p className="mt-1 text-4xl font-black tabular-nums text-white">
-                  {formatCurrency(Math.abs(change))}
-                </p>
-              </div>
-            )}
           </div>
 
           <div className="shrink-0 border-t border-white/10 p-4 sm:p-5">
@@ -742,9 +619,9 @@ export function PDV({ avulsoProduct }: PDVProps) {
               onClick={openCheckout}
               disabled={cartItems.length === 0 || isSubmitting}
             >
-              Finalizar venda
+              Encerrar venda
               <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold">
-                F10
+                F7
               </kbd>
             </Button>
           </div>
@@ -782,374 +659,43 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </div>
       )}
 
-      {/* Checkout sheet */}
       {checkoutOpen && (
-        <div className="absolute inset-0 z-10 flex items-stretch justify-end bg-black/55 backdrop-blur-[2px]">
-          <div
-            className="absolute inset-0"
-            onClick={() => setCheckoutOpen(false)}
-            aria-hidden
-          />
-          <div className="relative flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0d1c31] shadow-2xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-              <div>
-                <p className="text-sm font-bold text-white">Pagamento</p>
-                <p className="text-xs text-white/45">{formatCurrency(total)}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setCheckoutOpen(false)}
-                className="rounded-md p-2 text-white/50 hover:bg-white/5 hover:text-white"
-                aria-label="Fechar"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium text-white/70 flex items-center gap-1.5">
-                  <CreditCard className="h-3.5 w-3.5" />
-                  Formas de pagamento <span className="text-red-400">*</span>
-                </Label>
-                <p className="text-[11px] text-white/40">
-                  Ex.: R$ 10 no PIX + R$ 10 no dinheiro — adicione as duas linhas.
-                </p>
-
-                <div className="space-y-2">
-                  {payLines.map((line) => (
-                    <div
-                      key={line.id}
-                      className="grid grid-cols-[1fr_100px_36px] gap-2 rounded-xl border border-white/10 bg-[#0a1628] p-2"
-                    >
-                      <Select
-                        value={line.method}
-                        items={PAYMENT_OPTIONS}
-                        onValueChange={(v) => {
-                          updatePayLine(line.id, { method: v as TenderMethod })
-                        }}
-                      >
-                        <SelectTrigger
-                          aria-invalid={triedSubmit && !line.method}
-                          className="h-10 border-white/15 bg-transparent text-white"
-                        >
-                          <SelectValue placeholder="Método..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {PAYMENT_OPTIONS.map((opt) => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={line.amountRaw}
-                        onChange={(e) =>
-                          updatePayLine(line.id, {
-                            amountRaw: e.target.value.replace(/[^\d,.]/g, ''),
-                          })
-                        }
-                        placeholder="0,00"
-                        className="h-10 border-white/15 bg-transparent text-right tabular-nums text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removePayLine(line.id)}
-                        disabled={payLines.length <= 1}
-                        className="inline-flex h-10 w-9 items-center justify-center rounded-md text-white/40 hover:bg-white/5 hover:text-red-300 disabled:opacity-20"
-                        aria-label="Remover forma"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={addPayLine}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    Outra forma
-                  </button>
-                  <p
-                    className={`text-xs font-semibold tabular-nums ${
-                      Math.abs(payRemaining) < 0.01
-                        ? 'text-emerald-300'
-                        : payRemaining > 0
-                          ? 'text-amber-300'
-                          : 'text-red-300'
-                    }`}
-                  >
-                    {Math.abs(payRemaining) < 0.01
-                      ? 'Total coberto'
-                      : payRemaining > 0
-                        ? `Falta ${formatCurrency(payRemaining)}`
-                        : `Sobra ${formatCurrency(Math.abs(payRemaining))}`}
-                  </p>
-                </div>
-
-                {triedSubmit && paymentMissing && (
-                  <p className="text-red-400 text-xs">Selecione o método de pagamento.</p>
-                )}
-              </div>
-
-              {cashPortion > 0 && (
-                <div className="space-y-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
-                  <Label
-                    htmlFor="cash-received"
-                    className="text-xs font-medium text-emerald-200 flex items-center gap-1.5"
-                  >
-                    <Banknote className="h-3.5 w-3.5" />
-                    Dinheiro recebido
-                    <span className="font-normal text-emerald-100/60">
-                      (parte: {formatCurrency(cashPortion)})
-                    </span>
-                  </Label>
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-white/40">
-                      R$
-                    </span>
-                    <Input
-                      id="cash-received"
-                      type="text"
-                      inputMode="decimal"
-                      value={cashReceivedRaw}
-                      onChange={(e) => {
-                        const cleaned = e.target.value.replace(/[^\d,.]/g, '')
-                        setCashReceivedRaw(cleaned)
-                      }}
-                      placeholder="0,00"
-                      autoComplete="off"
-                      className="h-11 border-emerald-400/30 bg-[#0a1628] pl-9 text-white"
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[cashPortion, 50, 100, 200].map((preset, idx) => (
-                      <button
-                        key={`${preset}-${idx}`}
-                        type="button"
-                        onClick={() => setCashReceivedRaw(preset.toFixed(2).replace('.', ','))}
-                        className="rounded-md border border-emerald-400/25 bg-black/20 px-2 py-1 text-[11px] font-medium text-emerald-100 hover:bg-emerald-500/20"
-                      >
-                        {idx === 0 ? 'Exato' : formatCurrency(preset)}
-                      </button>
-                    ))}
-                  </div>
-                  {hasCashEntered && (
-                    <div
-                      className={`rounded-xl px-4 py-3 text-white ${
-                        cashShort ? 'bg-red-600' : 'bg-emerald-600'
-                      }`}
-                    >
-                      <p className="text-[11px] font-semibold uppercase tracking-wider opacity-90">
-                        {cashShort ? 'Falta receber' : 'Troco a devolver'}
-                      </p>
-                      <p className="mt-1 text-3xl font-black tabular-nums">
-                        {formatCurrency(Math.abs(change))}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {hasFiadoLine && (
-                <div className="space-y-3 rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
-                  <Label className="text-xs font-medium text-amber-100 flex items-center gap-1.5">
-                    <UserRound className="h-3.5 w-3.5" />
-                    Cliente <span className="text-red-400">*</span>
-                  </Label>
-
-                  {selectedCustomer ? (
-                    <div className="rounded-md border border-amber-400/20 bg-black/20 px-3 py-2 space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-white">
-                            {selectedCustomer.full_name}
-                          </p>
-                          {selectedCustomer.phone && (
-                            <p className="mt-0.5 flex items-center gap-1 text-xs text-white/45">
-                              <Phone className="h-3 w-3" />
-                              {selectedCustomer.phone}
-                            </p>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedCustomer(null)
-                            setCustomerQuery('')
-                          }}
-                          className="shrink-0 text-white/40 hover:text-white"
-                          aria-label="Trocar cliente"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                      {selectedCustomer.current_debt > 0 ? (
-                        <p className="rounded bg-red-500/15 px-2 py-1 text-xs font-medium text-red-300">
-                          Possui {formatCurrency(selectedCustomer.current_debt)} em aberto
-                        </p>
-                      ) : (
-                        <p className="rounded bg-emerald-500/15 px-2 py-1 text-xs font-medium text-emerald-300">
-                          Sem débitos pendentes
-                        </p>
-                      )}
-                    </div>
-                  ) : showNewCustomerForm ? (
-                    <div className="space-y-2">
-                      <Input
-                        placeholder="Nome completo *"
-                        value={newCustomerName}
-                        onChange={(e) => setNewCustomerName(e.target.value)}
-                        className="h-9 border-amber-400/25 bg-[#0a1628] text-sm text-white"
-                        autoFocus
-                      />
-                      <Input
-                        placeholder="Telefone *"
-                        value={newCustomerPhone}
-                        onChange={(e) => setNewCustomerPhone(formatPhone(e.target.value))}
-                        inputMode="numeric"
-                        className="h-9 border-amber-400/25 bg-[#0a1628] text-sm text-white"
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-8 flex-1 bg-amber-600 text-xs text-white hover:bg-amber-500"
-                          disabled={
-                            !newCustomerName.trim() ||
-                            !newCustomerPhone.trim() ||
-                            isCreatingCustomer
-                          }
-                          onClick={handleCreateCustomer}
-                        >
-                          {isCreatingCustomer ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            'Cadastrar'
-                          )}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 border-white/15 bg-transparent text-xs text-white/70 hover:bg-white/5"
-                          onClick={() => setShowNewCustomerForm(false)}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
-                        <Input
-                          placeholder="Buscar por nome ou telefone..."
-                          value={customerQuery}
-                          onChange={(e) => setCustomerQuery(e.target.value)}
-                          className="h-9 border-amber-400/25 bg-[#0a1628] pl-8 text-sm text-white"
-                          autoFocus
-                        />
-                        {isSearchingCustomer && (
-                          <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-white/40" />
-                        )}
-                      </div>
-
-                      {customerResults.length > 0 && (
-                        <ul className="max-h-36 overflow-y-auto divide-y divide-white/5 rounded-md border border-white/10 bg-[#0a1628]">
-                          {customerResults.map((c) => (
-                            <li key={c.id}>
-                              <button
-                                type="button"
-                                className="w-full px-3 py-2 text-left transition-colors hover:bg-amber-500/10"
-                                onClick={() => {
-                                  setSelectedCustomer(c)
-                                  setCustomerQuery('')
-                                  setCustomerResults([])
-                                }}
-                              >
-                                <p className="text-sm font-medium text-white">{c.full_name}</p>
-                                {c.phone && (
-                                  <p className="text-xs text-white/40">{c.phone}</p>
-                                )}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      {customerQuery.trim() &&
-                        !isSearchingCustomer &&
-                        customerResults.length === 0 && (
-                          <p className="py-1 text-center text-xs text-white/40">
-                            Nenhum cliente encontrado.
-                          </p>
-                        )}
-
-                      <button
-                        type="button"
-                        onClick={() => setShowNewCustomerForm(true)}
-                        className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-medium text-amber-200 hover:text-amber-100"
-                      >
-                        <UserPlus className="h-3.5 w-3.5" />
-                        Cadastrar novo cliente
-                      </button>
-                    </div>
-                  )}
-
-                  {triedSubmit && customerMissing && (
-                    <p className="text-xs text-red-400">Selecione um cliente para continuar.</p>
-                  )}
-                </div>
-              )}
-
-              <div className="space-y-1.5">
-                <Label htmlFor="notes" className="text-xs font-medium text-white/70">
-                  Observações
-                </Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Observações opcionais..."
-                  rows={2}
-                  className="resize-none border-white/15 bg-[#0a1628] text-sm text-white placeholder:text-white/30"
-                />
-              </div>
-            </div>
-
-            <div className="shrink-0 border-t border-white/10 p-4">
-              <Button
-                className="h-14 w-full bg-emerald-500 text-base font-bold text-[#04120c] hover:bg-emerald-400 disabled:opacity-40"
-                onClick={handleSubmit}
-                disabled={!canSubmit}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processando...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="mr-2 h-5 w-5" />
-                    Confirmar venda
-                    <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-[11px]">
-                      F10
-                    </kbd>
-                  </>
-                )}
-              </Button>
-            </div>
-          </div>
-        </div>
+        <PaymentCheckout
+          total={total}
+          notes={notes}
+          onNotesChange={setNotes}
+          informed={informedPays}
+          onInformedChange={setInformedPays}
+          isSubmitting={isSubmitting}
+          onClose={() => setCheckoutOpen(false)}
+          onConfirm={() => void handleSubmit()}
+          selectedCustomer={selectedCustomer}
+          onClearCustomer={() => {
+            setSelectedCustomer(null)
+            setCustomerQuery('')
+          }}
+          customerQuery={customerQuery}
+          onCustomerQueryChange={setCustomerQuery}
+          customerResults={customerResults}
+          isSearchingCustomer={isSearchingCustomer}
+          showNewCustomerForm={showNewCustomerForm}
+          onShowNewCustomerForm={setShowNewCustomerForm}
+          newCustomerName={newCustomerName}
+          onNewCustomerNameChange={setNewCustomerName}
+          newCustomerPhone={newCustomerPhone}
+          onNewCustomerPhoneChange={(v) => setNewCustomerPhone(formatPhone(v))}
+          isCreatingCustomer={isCreatingCustomer}
+          onCreateCustomer={() => void handleCreateCustomer()}
+          onSelectCustomer={(c) => {
+            setSelectedCustomer(c)
+            setCustomerQuery('')
+            setCustomerResults([])
+          }}
+          customerMissing={customerMissing}
+          triedSubmit={triedSubmit}
+        />
       )}
+
     </div>
   )
 }

@@ -28,7 +28,7 @@
  * installs activate a fresh cache and drop the previous version.
  */
 
-const SW_VERSION = 'v4-2026-08-01'
+const SW_VERSION = 'v5-2026-08-01-trevo'
 const SHELL_CACHE = `vendasapp-shell-${SW_VERSION}`
 
 self.addEventListener('install', (event) => {
