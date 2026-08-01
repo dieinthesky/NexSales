@@ -82,7 +82,12 @@ export async function getCashClose(
   const { start, end } = brDayRangeUTC(localDate)
 
   const supabase = client ?? (await createClient())
-  let { data, error } = await supabase
+
+  type RawSaleWithPays = RawSale & {
+    sale_payments?: { payment_method: PaymentMethod; amount: number }[] | null
+  }
+
+  const withPayments = await supabase
     .from('sales')
     .select(
       'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name)), sale_payments(payment_method, amount)',
@@ -91,24 +96,26 @@ export async function getCashClose(
     .lte('created_at', end)
     .order('created_at', { ascending: true })
 
-  // Antes da migração sale_payments, cai no select antigo.
-  if (error?.message?.includes('sale_payments')) {
-    ;({ data, error } = await supabase
+  let rows: RawSaleWithPays[]
+
+  if (withPayments.error?.message?.includes('sale_payments')) {
+    // Antes da migração sale_payments, cai no select antigo.
+    const legacy = await supabase
       .from('sales')
       .select(
         'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name))',
       )
       .gte('created_at', start)
       .lte('created_at', end)
-      .order('created_at', { ascending: true }))
-  }
+      .order('created_at', { ascending: true })
 
-  if (error) throw new Error(error.message)
-
-  type RawSaleWithPays = RawSale & {
-    sale_payments?: { payment_method: PaymentMethod; amount: number }[] | null
+    if (legacy.error) throw new Error(legacy.error.message)
+    rows = (legacy.data ?? []) as unknown as RawSaleWithPays[]
+  } else if (withPayments.error) {
+    throw new Error(withPayments.error.message)
+  } else {
+    rows = (withPayments.data ?? []) as unknown as RawSaleWithPays[]
   }
-  const rows = (data ?? []) as unknown as RawSaleWithPays[]
 
   const sales: SaleRow[] = rows.map((row) => ({
     id: row.id,

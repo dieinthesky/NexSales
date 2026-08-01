@@ -28,7 +28,7 @@
  * installs activate a fresh cache and drop the previous version.
  */
 
-const SW_VERSION = 'v3-2026-06-07'
+const SW_VERSION = 'v4-2026-08-01'
 const SHELL_CACHE = `vendasapp-shell-${SW_VERSION}`
 
 self.addEventListener('install', (event) => {

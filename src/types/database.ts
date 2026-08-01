@@ -184,6 +184,38 @@ export interface Database {
           }
         ]
       }
+      sale_payments: {
+        Row: {
+          id: string
+          sale_id: string
+          payment_method: PaymentMethod
+          amount: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          sale_id: string
+          payment_method: PaymentMethod
+          amount: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          sale_id?: string
+          payment_method?: PaymentMethod
+          amount?: number
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'sale_payments_sale_id_fkey'
+            columns: ['sale_id']
+            isOneToOne: false
+            referencedRelation: 'sales'
+            referencedColumns: ['id']
+          },
+        ]
+      }
       sale_items: {
         Row: {
           id: string
