@@ -34,8 +34,13 @@ jobs:
           arch: x64
 
       - name: Install dependencies
-        # npm install (não ci): permite electron-updater novo sem lock local
+        # --ignore-scripts: evita rebuild nativo no install; better-sqlite3
+        # é recompilado depois para o ABI do Electron. O binário do Electron
+        # precisa ser baixado à parte (postinstall é pulado).
         run: npm install --ignore-scripts
+
+      - name: Download Electron binary
+        run: node node_modules/electron/install.js
 
       - name: Bump app version for this build
         shell: bash
@@ -79,15 +84,16 @@ jobs:
 
       - name: Smoke-check better-sqlite3 in standalone (Electron ABI)
         shell: bash
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
         run: |
           NODE_FILE=".next/standalone/node_modules/better-sqlite3/build/Release/better_sqlite3.node"
           if [ ! -f "$NODE_FILE" ]; then
             echo "Missing $NODE_FILE"
             exit 1
           fi
-          # better-sqlite3 was rebuilt for Electron — load via Electron-as-Node,
-          # not system Node (different ABI).
-          ELECTRON_RUN_AS_NODE=1 npx --no-install electron -e "require('./.next/standalone/node_modules/better-sqlite3'); console.log('better-sqlite3 ok')"
+          # Carrega com o binário do Electron (mesmo ABI do rebuild), não com o Node do runner.
+          node node_modules/electron/cli.js -e "require('./.next/standalone/node_modules/better-sqlite3'); console.log('better-sqlite3 ok')"
 
       - name: Package Windows installer
         env:
