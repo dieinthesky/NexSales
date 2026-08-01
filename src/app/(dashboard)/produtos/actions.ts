@@ -18,6 +18,8 @@ export type BarcodeLookupResult =
       name: string
       /** Soft-deleted product — código ainda ocupado; reativar em vez de criar de novo. */
       inactive?: boolean
+      stock_quantity?: number
+      sale_price?: number
     }
   | {
       status: 'found_external'
@@ -51,7 +53,7 @@ export async function lookupProductByBarcode(
     // 1. Already cadastrated by the user? (inclui inativos — code é UNIQUE)
     const { data: existing, error: existingError } = await supabase
       .from('products')
-      .select('id, name, is_active')
+      .select('id, name, is_active, stock_quantity, sale_price')
       .eq('code', trimmed)
       .maybeSingle()
 
@@ -65,6 +67,8 @@ export async function lookupProductByBarcode(
         productId: existing.id,
         name: existing.name,
         inactive: existing.is_active === false,
+        stock_quantity: existing.stock_quantity,
+        sale_price: existing.sale_price,
       }
     }
 
@@ -422,4 +426,104 @@ export async function reactivateProduct(id: string) {
   revalidatePath('/produtos')
   revalidatePath(`/produtos/${id}`)
   return { success: true }
+}
+
+export type VisitProductResult = {
+  id: string
+  code: string
+  name: string
+  stock_quantity: number
+  sale_price: number
+}
+
+/** Atualiza só o estoque (fluxo Visita / Inventário no celular). */
+export async function setProductStock(
+  productId: string,
+  quantity: number,
+): Promise<{ error: string } | { success: true; product: VisitProductResult }> {
+  if (!(await isAdmin())) {
+    return { error: 'Apenas administradores podem alterar estoque.' }
+  }
+
+  const qty = Number(quantity)
+  if (!Number.isFinite(qty) || !Number.isInteger(qty) || qty < 0) {
+    return { error: 'Estoque inválido.' }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('products')
+    .update({
+      stock_quantity: qty,
+      is_active: true,
+      track_stock: true,
+    })
+    .eq('id', productId)
+    .select('id, code, name, stock_quantity, sale_price')
+    .single()
+
+  if (error) return { error: error.message }
+  if (!data) return { error: 'Produto não encontrado.' }
+
+  revalidatePath('/produtos')
+  revalidatePath('/produtos/visita')
+  revalidatePath('/vendas/nova')
+  return { success: true, product: data }
+}
+
+/** Cadastro rápido na visita: código + nome + preço + estoque (sem redirect). */
+export async function createProductFromVisit(input: {
+  code: string
+  name: string
+  sale_price: number
+  stock_quantity: number
+  cost_price?: number
+  description?: string | null
+  category_id?: string | null
+  image_url?: string | null
+}): Promise<{ error: string } | { success: true; product: VisitProductResult }> {
+  if (!(await isAdmin())) {
+    return { error: 'Apenas administradores podem cadastrar produtos.' }
+  }
+
+  const parsed = productSchema.safeParse({
+    code: input.code.trim(),
+    name: input.name.trim(),
+    description: input.description ?? '',
+    sale_price: input.sale_price,
+    cost_price: input.cost_price ?? 0,
+    stock_quantity: input.stock_quantity,
+    min_stock: 0,
+    category_id: input.category_id || '',
+    track_stock: true,
+  })
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0].message }
+  }
+
+  const supabase = await createClient()
+  const imageUrl = input.image_url?.trim() || null
+
+  const { data, error } = await supabase
+    .from('products')
+    .insert({
+      ...parsed.data,
+      category_id: parsed.data.category_id || null,
+      description: parsed.data.description || null,
+      image_url: imageUrl,
+    })
+    .select('id, code, name, stock_quantity, sale_price')
+    .single()
+
+  if (error) {
+    if (error.code === '23505') return { error: 'Código de produto já existe.' }
+    return { error: error.message }
+  }
+  if (!data) return { error: 'Falha ao criar produto.' }
+
+  revalidatePath('/produtos')
+  revalidatePath('/produtos/visita')
+  revalidatePath('/vendas/nova')
+  return { success: true, product: data }
 }

@@ -19,6 +19,7 @@ import {
   Sun,
   Moon,
   Store,
+  ClipboardList,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -44,6 +45,7 @@ const navSections: NavSection[] = [
     items: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, adminOnly: true },
       { href: '/produtos', label: 'Produtos', icon: Package, adminOnly: true },
+      { href: '/produtos/visita', label: 'Visita / Inventário', icon: ClipboardList, adminOnly: true },
       { href: '/produtos/categorias', label: 'Categorias', icon: Tags, adminOnly: true },
     ],
   },
@@ -111,7 +113,9 @@ function isItemActive(href: string, pathname: string): boolean {
   if (href === '/produtos') {
     return (
       pathname === '/produtos' ||
-      (pathname.startsWith('/produtos/') && !pathname.startsWith('/produtos/categorias'))
+      (pathname.startsWith('/produtos/') &&
+        !pathname.startsWith('/produtos/categorias') &&
+        !pathname.startsWith('/produtos/visita'))
     )
   }
   return pathname.startsWith(href)
