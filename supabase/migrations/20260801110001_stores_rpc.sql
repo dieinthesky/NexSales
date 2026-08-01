@@ -191,13 +191,16 @@ begin
   returning id into v_store_id;
 
   insert into public.store_members (store_id, user_id, role)
-  values (v_store_id, p_owner_user_id, 'admin')
-  on conflict (store_id, user_id) do update set role = 'admin';
+  values (v_store_id, p_owner_user_id, 'admin'::public.user_role)
+  on conflict (store_id, user_id) do update
+    set role = 'admin'::public.user_role;
 
   insert into public.user_roles (user_id, role)
-  values (p_owner_user_id, 'admin')
+  values (p_owner_user_id, 'admin'::public.user_role)
   on conflict (user_id) do update
-    set role = case when public.user_roles.role = 'master' then 'master' else 'admin' end;
+    set role = 'admin'::public.user_role,
+        updated_at = now()
+  where public.user_roles.role is distinct from 'master'::public.user_role;
 
   if p_copy_catalog then
     select id into v_template_id from public.stores where is_template limit 1;

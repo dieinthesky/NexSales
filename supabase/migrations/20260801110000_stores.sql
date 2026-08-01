@@ -215,17 +215,16 @@ begin
 
   if v_walter_id is not null then
     insert into public.store_members (store_id, user_id, role)
-    values (v_walter_store_id, v_walter_id, 'admin')
-    on conflict (store_id, user_id) do update set role = 'admin';
+    values (v_walter_store_id, v_walter_id, 'admin'::public.user_role)
+    on conflict (store_id, user_id) do update
+      set role = 'admin'::public.user_role;
 
     insert into public.user_roles (user_id, role)
-    values (v_walter_id, 'admin')
+    values (v_walter_id, 'admin'::public.user_role)
     on conflict (user_id) do update
-      set role = case
-        when public.user_roles.role = 'master' then 'master'
-        else 'admin'
-      end,
-      updated_at = now();
+      set role = 'admin'::public.user_role,
+          updated_at = now()
+    where public.user_roles.role is distinct from 'master'::public.user_role;
   end if;
 end $$;
 
