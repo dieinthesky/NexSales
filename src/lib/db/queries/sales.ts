@@ -36,6 +36,7 @@ interface RawSaleItemRow {
   category_id: string | null
   is_active: number
   track_stock: number
+  image_url: string | null
   prod_created_at: string
   prod_updated_at: string
 }
@@ -99,7 +100,7 @@ export function getSaleById(id: string): SaleWithItems | null {
         si.item_description,
         p.id AS prod_id, p.code, p.name AS prod_name, p.description,
         p.sale_price, p.cost_price, p.stock_quantity, p.min_stock,
-        p.category_id, p.is_active, p.track_stock,
+        p.category_id, p.is_active, p.track_stock, p.image_url,
         p.created_at AS prod_created_at, p.updated_at AS prod_updated_at
        FROM sale_items si
        LEFT JOIN products p ON p.id = si.product_id
@@ -136,6 +137,7 @@ export function getSaleById(id: string): SaleWithItems | null {
         category_id: item.category_id ?? null,
         is_active: item.is_active === 1,
         track_stock: item.track_stock !== 0,
+        image_url: item.image_url ?? null,
         created_at: item.prod_created_at ?? sale.created_at,
         updated_at: item.prod_updated_at ?? sale.created_at,
       } as Product,

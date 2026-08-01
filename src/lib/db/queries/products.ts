@@ -17,6 +17,7 @@ interface RawProductRow {
   category_id: string | null
   is_active: number
   track_stock: number
+  image_url: string | null
   created_at: string
   updated_at: string
   cat_id: string | null
@@ -37,6 +38,7 @@ function mapProductRow(row: RawProductRow): ProductWithCategory {
     category_id: row.category_id,
     is_active: row.is_active === 1,
     track_stock: row.track_stock === 1,
+    image_url: row.image_url ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     categories: row.cat_id

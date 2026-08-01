@@ -11,6 +11,9 @@ function migrateSchema(db: NxDB): void {
   if (!products.has('track_stock')) {
     db.exec(`ALTER TABLE products ADD COLUMN track_stock INTEGER NOT NULL DEFAULT 1`)
   }
+  if (!products.has('image_url')) {
+    db.exec(`ALTER TABLE products ADD COLUMN image_url TEXT`)
+  }
 
   const saleItems = tableColumns(db, 'sale_items')
   if (!saleItems.has('item_description')) {
@@ -38,6 +41,7 @@ export function initSchema(db: NxDB): void {
       category_id      TEXT,
       is_active        INTEGER NOT NULL DEFAULT 1,
       track_stock      INTEGER NOT NULL DEFAULT 1,
+      image_url        TEXT,
       created_at       TEXT NOT NULL,
       updated_at       TEXT NOT NULL
     );

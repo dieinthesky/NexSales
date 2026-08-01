@@ -30,6 +30,7 @@ function makeProduct(overrides: Partial<Product> = {}): Product {
     category_id: null,
     is_active: true,
     track_stock: true,
+    image_url: null,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...overrides,

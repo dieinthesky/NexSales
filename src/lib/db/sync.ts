@@ -97,8 +97,8 @@ function _upsertProducts(rows: Product[]): void {
   const stmt = db.prepare(
     `INSERT OR REPLACE INTO products
      (id, code, name, description, sale_price, cost_price, stock_quantity, min_stock,
-      category_id, is_active, track_stock, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      category_id, is_active, track_stock, image_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
   for (const r of rows) {
     stmt.run(
@@ -107,6 +107,7 @@ function _upsertProducts(rows: Product[]): void {
       r.stock_quantity, r.min_stock,
       r.category_id ?? null, r.is_active ? 1 : 0,
       r.track_stock === false ? 0 : 1,
+      r.image_url ?? null,
       r.created_at, r.updated_at,
     )
   }
