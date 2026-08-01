@@ -27,7 +27,7 @@ export function BarcodeCameraScanner({
   const hostRef = useRef<HTMLDivElement>(null)
   const scannerRef = useRef<{
     stop: () => Promise<void>
-    clear: () => Promise<void>
+    clear: () => void
   } | null>(null)
   const lastCodeRef = useRef('')
   const lastAtRef = useRef(0)
@@ -49,7 +49,7 @@ export function BarcodeCameraScanner({
       // already stopped
     }
     try {
-      await scanner.clear()
+      scanner.clear()
     } catch {
       // ignore
     }
