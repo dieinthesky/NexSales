@@ -35,7 +35,7 @@ export type BarcodeLookupResult =
  * Resolution order (each step short-circuits on hit):
  *   1. Products table — if the user already registered this code → 'already_registered'
  *   2. barcode_cache table — if we've looked this code up before, reuse the result
- *   3. Cosmos → Open Food Facts → UPCitemdb — external lookup
+ *   3. Cosmos → Open Food/Products/Beauty Facts → UPCitemdb — external lookup
  *   4. Persist whatever was found (including 'not_found') in barcode_cache so
  *      the same code never hits external APIs again.
  */

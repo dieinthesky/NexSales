@@ -333,7 +333,7 @@ export interface Database {
       barcode_cache: {
         Row: {
           code: string
-          source: 'cosmos' | 'openfoodfacts' | 'upcitemdb' | 'not_found'
+          source: 'cosmos' | 'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts' | 'upcitemdb' | 'not_found'
           name: string | null
           description: string | null
           created_at: string
@@ -342,7 +342,7 @@ export interface Database {
         }
         Insert: {
           code: string
-          source: 'cosmos' | 'openfoodfacts' | 'upcitemdb' | 'not_found'
+          source: 'cosmos' | 'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts' | 'upcitemdb' | 'not_found'
           name?: string | null
           description?: string | null
           created_at?: string
@@ -351,7 +351,7 @@ export interface Database {
         }
         Update: {
           code?: string
-          source?: 'cosmos' | 'openfoodfacts' | 'upcitemdb' | 'not_found'
+          source?: 'cosmos' | 'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts' | 'upcitemdb' | 'not_found'
           name?: string | null
           description?: string | null
           created_at?: string

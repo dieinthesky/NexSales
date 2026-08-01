@@ -94,8 +94,20 @@ describe('getByCode', () => {
     expect(found?.name).toBe('Leite')
   })
 
-  it('returns null for an unknown code', async () => {
+  it('returns null for an unknown code and refreshes when online', async () => {
     expect(await getByCode('does-not-exist')).toBeNull()
+    expect(syncProducts).toHaveBeenCalledTimes(1)
+  })
+
+  it('finds a product after sync fills a cache miss', async () => {
+    vi.mocked(syncProducts).mockImplementationOnce(async () => {
+      const db = getDB()
+      await db.products.add(makeProduct({ code: '7894900011517', name: 'Coca 2L' }))
+      return { synced: 1, at: new Date().toISOString() }
+    })
+    const found = await getByCode('7894900011517')
+    expect(found?.name).toBe('Coca 2L')
+    expect(syncProducts).toHaveBeenCalledTimes(1)
   })
 
   it('returns null for an inactive product', async () => {

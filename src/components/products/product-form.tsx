@@ -34,6 +34,8 @@ import type { Category, Product } from '@/types/database'
 const SOURCE_LABELS: Record<string, string> = {
   cosmos: 'Cosmos (Bluesoft)',
   openfoodfacts: 'Open Food Facts',
+  openproductsfacts: 'Open Products Facts',
+  openbeautyfacts: 'Open Beauty Facts',
   upcitemdb: 'UPCitemdb',
 }
 

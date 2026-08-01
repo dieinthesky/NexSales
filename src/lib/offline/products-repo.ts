@@ -50,9 +50,21 @@ export async function getByCode(code: string): Promise<Product | null> {
   if (!trimmed) return null
 
   const db = getDB()
-  const product = await db.products.where('code').equals(trimmed).first()
-  if (!product || !product.is_active) return null
-  return product
+  let product = await db.products.where('code').equals(trimmed).first()
+  if (product?.is_active) return product
+
+  // Produto acabou de ser cadastrado / cache velho: sincroniza e tenta de novo.
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    try {
+      await syncProducts()
+      product = await db.products.where('code').equals(trimmed).first()
+      if (product?.is_active) return product
+    } catch {
+      // offline/rede — segue o miss
+    }
+  }
+
+  return null
 }
 
 /** Atualiza a foto no cache local (PDV) sem esperar o sync. */

@@ -3,15 +3,23 @@
  *
  * Strategy:
  *   1. Check the application's own Supabase database (handled in the action layer)
- *   2. Fall back to Cosmos (Bluesoft) — best Brazilian coverage; requires COSMOS_API_TOKEN
- *   3. Fall back to Open Food Facts — free, no key, but mostly food/cosmetics
+ *   2. Cosmos (Bluesoft) — best Brazilian coverage; requires COSMOS_API_TOKEN
+ *   3. Open Food Facts — food & beverages
+ *   4. Open Products Facts — non-food (limpeza, utilidades…)
+ *   5. Open Beauty Facts — cosmetics / personal care
+ *   6. UPCitemdb — worldwide general (trial)
  *
  * Each external call is wrapped in a short timeout so the cadastro flow never hangs.
  */
 
 const EXTERNAL_TIMEOUT_MS = 5_000
 
-export type BarcodeSource = 'cosmos' | 'openfoodfacts' | 'upcitemdb'
+export type BarcodeSource =
+  | 'cosmos'
+  | 'openfoodfacts'
+  | 'openproductsfacts'
+  | 'openbeautyfacts'
+  | 'upcitemdb'
 
 export interface ExternalBarcodeResult {
   source: BarcodeSource
@@ -111,10 +119,16 @@ async function lookupCosmos(code: string): Promise<ExternalBarcodeResult | null>
   }
 }
 
-async function lookupOpenFoodFacts(
+/** Open Food / Products / Beauty Facts share the same API shape. */
+async function lookupOpenFactsFamily(
   code: string,
+  host: string,
+  source: Extract<
+    BarcodeSource,
+    'openfoodfacts' | 'openproductsfacts' | 'openbeautyfacts'
+  >,
 ): Promise<ExternalBarcodeResult | null> {
-  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json`
+  const url = `https://${host}/api/v2/product/${encodeURIComponent(code)}.json`
   const res = await fetchWithTimeout(
     url,
     { headers: { Accept: 'application/json', 'User-Agent': 'caixadobairro/1.0' } },
@@ -133,11 +147,23 @@ async function lookupOpenFoodFacts(
   const descriptionParts = [p.brands, p.categories?.split(',')[0]?.trim()].filter(Boolean)
 
   return {
-    source: 'openfoodfacts',
+    source,
     name: name.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
     imageUrl: p.image_front_url || p.image_url || null,
   }
+}
+
+async function lookupOpenFoodFacts(code: string) {
+  return lookupOpenFactsFamily(code, 'world.openfoodfacts.org', 'openfoodfacts')
+}
+
+async function lookupOpenProductsFacts(code: string) {
+  return lookupOpenFactsFamily(code, 'world.openproductsfacts.org', 'openproductsfacts')
+}
+
+async function lookupOpenBeautyFacts(code: string) {
+  return lookupOpenFactsFamily(code, 'world.openbeautyfacts.org', 'openbeautyfacts')
 }
 
 async function lookupUpcItemDb(code: string): Promise<ExternalBarcodeResult | null> {
@@ -175,13 +201,42 @@ function isLikelyBarcode(code: string): boolean {
   return /^\d{8,14}$/.test(code)
 }
 
+/** Free/open sources that complement Cosmos (food → non-food → beauty → general). */
+async function lookupFreeExternalChain(
+  code: string,
+): Promise<ExternalBarcodeResult | null> {
+  const fromOff = await lookupOpenFoodFacts(code)
+  if (fromOff) return fromOff
+
+  const fromOpf = await lookupOpenProductsFacts(code)
+  if (fromOpf) return fromOpf
+
+  const fromObf = await lookupOpenBeautyFacts(code)
+  if (fromObf) return fromObf
+
+  return lookupUpcItemDb(code)
+}
+
+/** First image found across free sources (used to enrich Cosmos/cache hits). */
+async function lookupFreeExternalImage(code: string): Promise<string | null> {
+  for (const lookup of [
+    lookupOpenFoodFacts,
+    lookupOpenProductsFacts,
+    lookupOpenBeautyFacts,
+    lookupUpcItemDb,
+  ]) {
+    const hit = await lookup(code)
+    if (hit?.imageUrl) return hit.imageUrl
+  }
+  return null
+}
+
 /**
  * Try external barcode databases in order:
- *   Cosmos (Brazil) → Open Food Facts (worldwide, food) → UPCitemdb (worldwide, general)
+ *   Cosmos → Open Food Facts → Open Products Facts → Open Beauty Facts → UPCitemdb
  * Returns the first successful result, or null if nothing matched.
  *
- * Importante: se o Cosmos achar o produto sem foto, ainda consulta o Open Food Facts
- * só para pegar a imagem (caso clássico no Brasil).
+ * Se o Cosmos achar o produto sem foto, ainda consulta as bases abertas só pela imagem.
  */
 export async function lookupExternalBarcode(
   code: string,
@@ -192,31 +247,19 @@ export async function lookupExternalBarcode(
   const fromCosmos = await lookupCosmos(trimmed)
   if (fromCosmos) {
     if (!fromCosmos.imageUrl) {
-      const fromOff = await lookupOpenFoodFacts(trimmed)
-      if (fromOff?.imageUrl) fromCosmos.imageUrl = fromOff.imageUrl
+      fromCosmos.imageUrl = await lookupFreeExternalImage(trimmed)
     }
     return fromCosmos
   }
 
-  const fromOff = await lookupOpenFoodFacts(trimmed)
-  if (fromOff) return fromOff
-
-  const fromUpc = await lookupUpcItemDb(trimmed)
-  if (fromUpc) return fromUpc
-
-  return null
+  return lookupFreeExternalChain(trimmed)
 }
 
-/** Só a URL da foto (OFF → UPC). Usado para enriquecer produto já cadastrado. */
+/** Só a URL da foto nas bases abertas. Usado para enriquecer produto já cadastrado. */
 export async function lookupExternalProductImage(
   code: string,
 ): Promise<string | null> {
   const trimmed = code.trim()
   if (!trimmed || !isLikelyBarcode(trimmed)) return null
-
-  const fromOff = await lookupOpenFoodFacts(trimmed)
-  if (fromOff?.imageUrl) return fromOff.imageUrl
-
-  const fromUpc = await lookupUpcItemDb(trimmed)
-  return fromUpc?.imageUrl ?? null
+  return lookupFreeExternalImage(trimmed)
 }
