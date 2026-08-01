@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import {
   useEffect,
@@ -12,7 +12,7 @@ import { useForm, useWatch, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Save, X, ScanBarcode, TrendingUp, TrendingDown } from 'lucide-react'
+import { Loader2, Save, X, ScanBarcode, TrendingUp, TrendingDown, ImagePlus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -95,6 +95,11 @@ interface ProductFormProps {
 export function ProductForm({ product, categories, onSubmit }: ProductFormProps) {
   const [isPending, startTransition] = useTransition()
   const [isLookingUp, setIsLookingUp] = useState(false)
+  const [imagePreview, setImagePreview] = useState<string | null>(product?.image_url ?? null)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageUrl, setImageUrl] = useState(product?.image_url ?? '')
+  const [removeImage, setRemoveImage] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const isNew = !product
 
@@ -187,8 +192,18 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
         if (result.description) {
           setValue('description', result.description, { shouldValidate: true })
         }
+        if (result.imageUrl) {
+          setImageUrl(result.imageUrl)
+          setImagePreview(result.imageUrl)
+          setImageFile(null)
+          setRemoveImage(false)
+        }
         const label = SOURCE_LABELS[result.source] ?? result.source
-        toast.success(`Produto encontrado em ${label}`)
+        toast.success(
+          result.imageUrl
+            ? `Produto encontrado em ${label} (com foto)`
+            : `Produto encontrado em ${label}`,
+        )
         nameInputRef.current?.focus()
         nameInputRef.current?.select()
         return
@@ -222,12 +237,35 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
     }
   }
 
+  function handleImagePick(file: File | null) {
+    if (!file) return
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('A foto deve ter no máximo 5 MB.')
+      return
+    }
+    setImageFile(file)
+    setImageUrl('')
+    setRemoveImage(false)
+    setImagePreview(URL.createObjectURL(file))
+  }
+
+  function clearImage() {
+    setImageFile(null)
+    setImageUrl('')
+    setImagePreview(null)
+    setRemoveImage(true)
+    if (imageInputRef.current) imageInputRef.current.value = ''
+  }
+
   function handleFormSubmit(data: ProductFormData) {
     startTransition(async () => {
       const formData = new FormData()
       Object.entries(data).forEach(([k, v]) => {
         if (v !== null && v !== undefined) formData.set(k, String(v))
       })
+      if (imageFile) formData.set('image', imageFile)
+      if (imageUrl) formData.set('image_url', imageUrl)
+      if (removeImage) formData.set('remove_image', '1')
 
       const result = await onSubmit(formData)
       if (result?.error) {
@@ -312,6 +350,44 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
               {errors.name && (
                 <p className="text-red-500 text-xs">{errors.name.message}</p>
               )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              Foto do produto
+            </Label>
+            <div className="flex items-start gap-3">
+              <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-800">
+                {imagePreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={imagePreview} alt="Prévia" className="h-full w-full object-cover" />
+                ) : (
+                  <ImagePlus className="h-7 w-7 text-slate-300" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <input
+                  ref={imageInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  className="block w-full text-xs text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 hover:file:bg-slate-200"
+                  onChange={(e) => handleImagePick(e.target.files?.[0] ?? null)}
+                />
+                <p className="text-[11px] text-slate-400">
+                  JPG/PNG/WEBP até 5 MB. No bipe, se achar foto na base, já preenche.
+                </p>
+                {imagePreview && (
+                  <button
+                    type="button"
+                    onClick={clearImage}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Remover foto
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

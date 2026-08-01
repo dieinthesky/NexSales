@@ -576,6 +576,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
               {lastItem ? (
                 <PdvProductArt
                   name={lastItem.product.name}
+                  imageUrl={lastItem.product.image_url}
                   className="h-44 w-full max-w-[260px] rounded-2xl sm:h-full sm:min-h-[220px]"
                 />
               ) : (

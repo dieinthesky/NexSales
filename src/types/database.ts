@@ -38,6 +38,7 @@ export interface Database {
           category_id: string | null
           is_active: boolean
           track_stock: boolean
+          image_url: string | null
           created_at: string
           updated_at: string
         }
@@ -53,6 +54,7 @@ export interface Database {
           category_id?: string | null
           is_active?: boolean
           track_stock?: boolean
+          image_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -68,6 +70,7 @@ export interface Database {
           category_id?: string | null
           is_active?: boolean
           track_stock?: boolean
+          image_url?: string | null
           created_at?: string
           updated_at?: string
         }

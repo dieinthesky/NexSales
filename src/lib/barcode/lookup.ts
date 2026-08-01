@@ -17,6 +17,7 @@ export interface ExternalBarcodeResult {
   source: BarcodeSource
   name: string
   description: string | null
+  imageUrl?: string | null
 }
 
 interface CosmosResponse {
@@ -24,6 +25,8 @@ interface CosmosResponse {
   brand?: { name?: string }
   gpc?: { description?: string }
   category?: { description?: string }
+  thumbnail?: string
+  image?: string
 }
 
 interface OffProduct {
@@ -33,6 +36,8 @@ interface OffProduct {
   generic_name_pt?: string
   brands?: string
   categories?: string
+  image_front_url?: string
+  image_url?: string
 }
 
 interface OffResponse {
@@ -45,6 +50,7 @@ interface UpcItem {
   description?: string
   brand?: string
   category?: string
+  images?: string[]
 }
 
 interface UpcResponse {
@@ -101,6 +107,7 @@ async function lookupCosmos(code: string): Promise<ExternalBarcodeResult | null>
     source: 'cosmos',
     name: data.description.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
+    imageUrl: data.thumbnail || data.image || null,
   }
 }
 
@@ -129,6 +136,7 @@ async function lookupOpenFoodFacts(
     source: 'openfoodfacts',
     name: name.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
+    imageUrl: p.image_front_url || p.image_url || null,
   }
 }
 
@@ -155,6 +163,7 @@ async function lookupUpcItemDb(code: string): Promise<ExternalBarcodeResult | nu
     source: 'upcitemdb',
     name: item.title.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
+    imageUrl: item.images?.[0] || null,
   }
 }
 

@@ -70,11 +70,30 @@ function initials(name: string): string {
 
 interface PdvProductArtProps {
   name: string
+  imageUrl?: string | null
   className?: string
 }
 
-/** Placeholder limpo até existir foto real no cadastro. */
-export function PdvProductArt({ name, className = '' }: PdvProductArtProps) {
+/** Foto real do produto, ou placeholder limpo se não houver. */
+export function PdvProductArt({ name, imageUrl, className = '' }: PdvProductArtProps) {
+  if (imageUrl) {
+    return (
+      <div
+        className={`relative overflow-hidden rounded-2xl bg-white ring-1 ring-slate-200 ${className}`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageUrl}
+          alt={name}
+          className="h-full w-full object-contain p-3"
+        />
+        <p className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 pb-2 pt-8 text-center text-xs font-semibold leading-snug text-white line-clamp-2">
+          {name}
+        </p>
+      </div>
+    )
+  }
+
   const theme = THEMES[hashName(name || 'item') % THEMES.length]
   const Icon = pickIcon(name)
   const mark = initials(name)
