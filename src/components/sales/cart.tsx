@@ -68,9 +68,8 @@ export function Cart({
   if (variant === 'cashier') {
     return (
       <div className="flex h-full min-h-0 flex-col bg-white text-slate-900">
-        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-slate-200 bg-slate-100 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:px-4">
-          <span>Descrição</span>
-          <span className="text-right">Qtd / Valores</span>
+        <div className="shrink-0 border-b border-slate-200 bg-slate-100 px-3 py-2 text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:px-4">
+          Produto · quantidade · total
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {[...items].reverse().map((item, reverseIndex) => {
@@ -83,15 +82,15 @@ export function Cart({
             return (
               <div
                 key={item.product.id}
-                className={`border-b border-slate-100 px-3 py-3 sm:px-4 ${
+                className={`border-b border-slate-100 px-3 py-3 text-center sm:px-4 ${
                   isLatest ? 'bg-emerald-50' : 'hover:bg-slate-50'
                 }`}
               >
-                <div className="flex items-start gap-2">
+                <div className="flex items-start gap-2 text-left">
                   <span className="mt-0.5 w-7 shrink-0 text-xs font-bold tabular-nums text-slate-400">
                     {String(index).padStart(2, '0')}
                   </span>
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 text-center">
                     <p className="text-sm font-bold leading-snug text-slate-900 sm:text-[15px]">
                       {item.product.name}
                     </p>
@@ -118,7 +117,7 @@ export function Cart({
                   </button>
                 </div>
 
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-9">
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
                   <div className="flex items-center gap-0.5">
                     <button
                       type="button"
@@ -129,7 +128,7 @@ export function Cart({
                     >
                       <Minus className="h-3.5 w-3.5" />
                     </button>
-                    <span className="w-8 text-center text-sm font-black tabular-nums">
+                    <span className="min-w-[2rem] text-center text-sm font-black tabular-nums">
                       {item.quantity}
                     </span>
                     <button
@@ -146,54 +145,57 @@ export function Cart({
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-3 text-sm">
-                    {isEditing ? (
-                      <div className="flex items-center gap-1">
-                        <Input
-                          ref={inputRef}
-                          type="text"
-                          inputMode="decimal"
-                          value={editRaw}
-                          onChange={(e) =>
-                            setEditRaw(e.target.value.replace(/[^\d,.]/g, ''))
-                          }
-                          onBlur={() => commitEdit(item.product.id)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') commitEdit(item.product.id)
-                            if (e.key === 'Escape') setEditingId(null)
-                          }}
-                          className="h-8 w-24 border-emerald-400 px-1.5 text-xs"
-                        />
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            commitEdit(item.product.id)
-                          }}
-                          className="text-emerald-600"
-                          aria-label="Confirmar preço"
-                        >
-                          <Check className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ) : (
+                  <p
+                    className={`text-lg font-black tabular-nums ${
+                      isLatest ? 'text-emerald-700' : 'text-slate-900'
+                    }`}
+                  >
+                    {formatCurrency(lineTotal)}
+                  </p>
+                </div>
+
+                <div className="mt-1.5 flex items-center justify-center gap-2 text-[11px] text-slate-500">
+                  {isEditing ? (
+                    <div className="flex items-center gap-1">
+                      <span>Preço un.</span>
+                      <Input
+                        ref={inputRef}
+                        type="text"
+                        inputMode="decimal"
+                        value={editRaw}
+                        onChange={(e) =>
+                          setEditRaw(e.target.value.replace(/[^\d,.]/g, ''))
+                        }
+                        onBlur={() => commitEdit(item.product.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitEdit(item.product.id)
+                          if (e.key === 'Escape') setEditingId(null)
+                        }}
+                        className="h-7 w-20 border-[#234e7a] px-1.5 text-xs"
+                      />
                       <button
                         type="button"
-                        onClick={() => startEdit(item)}
-                        className="inline-flex items-center gap-1 tabular-nums text-slate-600 hover:text-[#234e7a]"
+                        onMouseDown={(e) => {
+                          e.preventDefault()
+                          commitEdit(item.product.id)
+                        }}
+                        className="text-emerald-600"
+                        aria-label="Confirmar preço"
                       >
-                        {formatCurrency(effectivePrice)}
-                        <Pencil className="h-3 w-3 opacity-50" />
+                        <Check className="h-3.5 w-3.5" />
                       </button>
-                    )}
-                    <span
-                      className={`font-black tabular-nums ${
-                        isLatest ? 'text-emerald-700' : 'text-slate-900'
-                      }`}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => startEdit(item)}
+                      className="inline-flex items-center gap-1 text-slate-500 hover:text-[#234e7a]"
                     >
-                      {formatCurrency(lineTotal)}
-                    </span>
-                  </div>
+                      un. {formatCurrency(effectivePrice)}
+                      <Pencil className="h-3 w-3" />
+                      <span className="underline decoration-dotted">alterar</span>
+                    </button>
+                  )}
                 </div>
               </div>
             )

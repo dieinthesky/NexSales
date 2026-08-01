@@ -546,12 +546,21 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </div>
       )}
 
-      {/* Banner: item atual */}
+      {/* Banner: só o último item bipado (não é o total da venda) */}
       <div className="shrink-0 bg-[#234e7a] px-3 py-3 text-white sm:px-5 sm:py-4">
         {lastItem ? (
-          <p className="line-clamp-2 text-xl font-black uppercase leading-tight tracking-wide sm:text-3xl lg:text-4xl">
-            {lastItem.quantity.toLocaleString('pt-BR')} X {lastItem.product.name}
-          </p>
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-100/70">
+              Último item bipado
+            </p>
+            <p className="mt-0.5 line-clamp-2 text-xl font-black uppercase leading-tight tracking-wide sm:text-3xl lg:text-4xl">
+              {lastItem.quantity.toLocaleString('pt-BR')} X {lastItem.product.name}
+            </p>
+            <p className="mt-1 text-xs text-blue-100/65">
+              Na venda toda: {itemCount} {itemCount === 1 ? 'item' : 'itens'} · subtotal{' '}
+              {formatCurrency(total)}
+            </p>
+          </>
         ) : (
           <p className="text-xl font-bold text-white/70 sm:text-3xl">Aguardando produto…</p>
         )}
@@ -587,15 +596,16 @@ export function PDV({ avulsoProduct }: PDVProps) {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Quantidade
+                    Qtd deste item
                   </p>
                   <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">
                     {lastItem ? lastItem.quantity : '—'}
                   </p>
+                  <p className="mt-1 text-[10px] text-slate-400">Não é o total da venda</p>
                 </div>
                 <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                    Valor unitário
+                    Preço unitário
                   </p>
                   <p className="mt-1 text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">
                     {lastItem ? formatCurrency(lastUnit) : '—'}
@@ -603,10 +613,13 @@ export function PDV({ avulsoProduct }: PDVProps) {
                 </div>
                 <div className="rounded-xl bg-emerald-50 p-3 shadow-sm ring-1 ring-emerald-200">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/80">
-                    Valor total
+                    Total da linha
                   </p>
                   <p className="mt-1 text-2xl font-black tabular-nums text-emerald-800 sm:text-3xl">
                     {lastItem ? formatCurrency(lastLineTotal) : '—'}
+                  </p>
+                  <p className="mt-1 text-[10px] text-emerald-700/60">
+                    {lastItem ? `${lastItem.quantity} × unitário` : ''}
                   </p>
                 </div>
               </div>
@@ -625,8 +638,11 @@ export function PDV({ avulsoProduct }: PDVProps) {
 
           {/* Mobile cupom */}
           <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200 lg:hidden">
-            <div className="border-b border-slate-200 bg-[#1e3a5f] px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-white">
-              Cupom · {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+            <div className="border-b border-slate-200 bg-[#1e3a5f] px-3 py-2 text-center text-white">
+              <p className="text-xs font-bold uppercase tracking-[0.2em]">Cupom</p>
+              <p className="text-[11px] text-blue-100/80">
+                Consumidor final · {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+              </p>
             </div>
             <div className="min-h-[180px]">
               <Cart
@@ -645,8 +661,11 @@ export function PDV({ avulsoProduct }: PDVProps) {
         <aside className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200 lg:flex lg:w-[420px] xl:w-[480px]">
           <div className="shrink-0 bg-[#1e3a5f] px-4 py-2.5 text-center text-white">
             <p className="text-sm font-black uppercase tracking-[0.25em]">Cupom</p>
-            <p className="text-[11px] text-blue-100/80">
-              {itemCount} {itemCount === 1 ? 'item' : 'itens'} · Consumidor final
+            <p className="mt-0.5 text-[11px] font-medium text-blue-100/90">
+              Consumidor final
+            </p>
+            <p className="text-[11px] text-blue-100/70">
+              {itemCount} {itemCount === 1 ? 'item' : 'itens'} na venda
             </p>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">

@@ -246,37 +246,37 @@ export function PaymentCheckout({
   }
 
   return (
-    <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/65 p-3 backdrop-blur-[2px] sm:p-6">
+    <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#1e3a5f]/55 p-3 backdrop-blur-[2px] sm:p-6">
       <div
         className="absolute inset-0"
         onClick={onClose}
         aria-hidden
       />
-      <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d1c31] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+      <div className="relative flex max-h-[95vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 bg-[#1e3a5f] px-4 py-3 text-white">
           <div>
-            <p className="text-sm font-bold text-white">Encerrar venda</p>
-            <p className="text-xs text-white/45">
+            <p className="text-sm font-bold">Encerrar venda</p>
+            <p className="text-xs text-blue-100/75">
               Código da forma → Enter → valor → Enter · F7 confirma
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-2 text-white/50 hover:bg-white/5 hover:text-white"
+            className="rounded-md p-2 text-white/70 hover:bg-white/10 hover:text-white"
             aria-label="Fechar"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto bg-[#e8edf3] p-4 lg:grid-cols-[1.2fr_0.8fr]">
           {/* Esquerda: digitação estilo Trevo */}
           <div className="space-y-4">
-            <div className="rounded-xl border border-white/10 bg-[#0a1628] p-3 space-y-3">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
               <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     Forma {step === 'method' ? '←' : ''}
                   </Label>
                   <Input
@@ -287,15 +287,15 @@ export function PaymentCheckout({
                     onFocus={() => setStep('method')}
                     placeholder="01"
                     inputMode="numeric"
-                    className="h-12 border-white/15 bg-black/20 text-center font-mono text-xl font-bold text-white"
+                    className="h-12 border-slate-300 bg-slate-50 text-center font-mono text-xl font-bold text-slate-900"
                     autoComplete="off"
                   />
-                  <p className="truncate text-center text-xs font-semibold text-emerald-300">
+                  <p className="truncate text-center text-xs font-semibold text-[#234e7a]">
                     {resolvedMethod ? PAYMENT_LABELS[resolvedMethod] : '—'}
                   </p>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-white/50">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                     Valor {step === 'amount' ? '←' : ''}
                   </Label>
                   <Input
@@ -309,10 +309,10 @@ export function PaymentCheckout({
                     placeholder="0,00"
                     inputMode="decimal"
                     disabled={!resolvedMethod}
-                    className="h-12 border-white/15 bg-black/20 text-right font-mono text-xl font-bold tabular-nums text-white disabled:opacity-40"
+                    className="h-12 border-slate-300 bg-slate-50 text-right font-mono text-xl font-bold tabular-nums text-slate-900 disabled:opacity-40"
                     autoComplete="off"
                   />
-                  <p className="text-[11px] text-white/35">
+                  <p className="text-[11px] text-slate-500">
                     Dinheiro: pode digitar a nota (ex. 100) — o troco aparece à direita.
                   </p>
                 </div>
@@ -329,45 +329,49 @@ export function PaymentCheckout({
                       setAmountRaw(rest.toFixed(2).replace('.', ','))
                       setStep('amount')
                     }}
-                    className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/70 hover:bg-white/10"
+                    className={`rounded-md border px-2 py-1 text-[11px] font-medium ${
+                      methodCode === h.code
+                        ? 'border-emerald-400 bg-emerald-50 text-emerald-900'
+                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                    }`}
                   >
-                    <span className="font-mono text-emerald-300">{h.code}</span> {h.label}
+                    <span className="font-mono text-[#234e7a]">{h.code}</span> {h.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-[#0a1628] overflow-hidden">
-              <div className="border-b border-white/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-white/45">
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
                 Valores informados
               </div>
               {informed.length === 0 ? (
-                <p className="px-3 py-6 text-center text-sm text-white/35">
+                <p className="px-3 py-6 text-center text-sm text-slate-400">
                   Nenhum pagamento ainda — digite o código e o valor.
                 </p>
               ) : (
-                <ul className="divide-y divide-white/5">
+                <ul className="divide-y divide-slate-100">
                   {informed.map((row) => (
                     <li
                       key={row.id}
                       className="flex items-center justify-between gap-3 px-3 py-2.5"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-white">
+                        <p className="text-sm font-semibold text-slate-900">
                           {PAYMENT_LABELS[row.method] ?? row.method}
                         </p>
-                        <p className="text-[11px] font-mono text-white/35">
+                        <p className="text-[11px] font-mono text-slate-400">
                           {CODE_HINTS.find((h) => PAYMENT_CODES[h.code] === row.method)?.code ?? ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-base font-bold tabular-nums text-emerald-300">
+                        <span className="font-mono text-base font-bold tabular-nums text-[#234e7a]">
                           {formatCurrency(row.amount)}
                         </span>
                         <button
                           type="button"
                           onClick={() => removeInformed(row.id)}
-                          className="rounded p-1 text-white/35 hover:bg-white/5 hover:text-red-300"
+                          className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                           aria-label="Remover"
                         >
                           <X className="h-4 w-4" />
@@ -380,20 +384,20 @@ export function PaymentCheckout({
             </div>
 
             {hasFiado && (
-              <div className="space-y-3 rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
-                <Label className="text-xs font-medium text-amber-100 flex items-center gap-1.5">
+              <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+                <Label className="flex items-center gap-1.5 text-xs font-medium text-amber-900">
                   <UserRound className="h-3.5 w-3.5" />
-                  Cliente do fiado <span className="text-red-400">*</span>
+                  Cliente do fiado <span className="text-red-600">*</span>
                 </Label>
                 {selectedCustomer ? (
-                  <div className="rounded-md border border-amber-400/20 bg-black/20 px-3 py-2">
+                  <div className="rounded-md border border-amber-200 bg-white px-3 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-white">
+                        <p className="truncate text-sm font-medium text-slate-900">
                           {selectedCustomer.full_name}
                         </p>
                         {selectedCustomer.phone && (
-                          <p className="mt-0.5 flex items-center gap-1 text-xs text-white/45">
+                          <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
                             <Phone className="h-3 w-3" />
                             {selectedCustomer.phone}
                           </p>
@@ -402,7 +406,7 @@ export function PaymentCheckout({
                       <button
                         type="button"
                         onClick={onClearCustomer}
-                        className="text-white/40 hover:text-white"
+                        className="text-slate-400 hover:text-slate-700"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -414,7 +418,7 @@ export function PaymentCheckout({
                       placeholder="Nome completo *"
                       value={newCustomerName}
                       onChange={(e) => onNewCustomerNameChange(e.target.value)}
-                      className="h-9 border-amber-400/25 bg-[#0a1628] text-sm text-white"
+                      className="h-9 border-amber-300 bg-white text-sm"
                       autoFocus
                     />
                     <Input
@@ -422,7 +426,7 @@ export function PaymentCheckout({
                       value={newCustomerPhone}
                       onChange={(e) => onNewCustomerPhoneChange(e.target.value)}
                       inputMode="numeric"
-                      className="h-9 border-amber-400/25 bg-[#0a1628] text-sm text-white"
+                      className="h-9 border-amber-300 bg-white text-sm"
                     />
                     <div className="flex gap-2">
                       <Button
@@ -446,7 +450,7 @@ export function PaymentCheckout({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-8 border-white/15 bg-transparent text-xs text-white/70"
+                        className="h-8 text-xs"
                         onClick={() => onShowNewCustomerForm(false)}
                       >
                         Cancelar
@@ -456,29 +460,29 @@ export function PaymentCheckout({
                 ) : (
                   <div className="space-y-2">
                     <div className="relative">
-                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
+                      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                       <Input
                         placeholder="Buscar cliente..."
                         value={customerQuery}
                         onChange={(e) => onCustomerQueryChange(e.target.value)}
-                        className="h-9 border-amber-400/25 bg-[#0a1628] pl-8 text-sm text-white"
+                        className="h-9 border-amber-300 bg-white pl-8 text-sm"
                       />
                       {isSearchingCustomer && (
-                        <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-white/40" />
+                        <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-slate-400" />
                       )}
                     </div>
                     {customerResults.length > 0 && (
-                      <ul className="max-h-32 overflow-y-auto divide-y divide-white/5 rounded-md border border-white/10">
+                      <ul className="max-h-32 overflow-y-auto divide-y divide-slate-100 rounded-md border border-slate-200 bg-white">
                         {customerResults.map((c) => (
                           <li key={c.id}>
                             <button
                               type="button"
-                              className="w-full px-3 py-2 text-left hover:bg-amber-500/10"
+                              className="w-full px-3 py-2 text-left hover:bg-amber-50"
                               onClick={() => onSelectCustomer(c)}
                             >
-                              <p className="text-sm font-medium text-white">{c.full_name}</p>
+                              <p className="text-sm font-medium text-slate-900">{c.full_name}</p>
                               {c.phone && (
-                                <p className="text-xs text-white/40">{c.phone}</p>
+                                <p className="text-xs text-slate-500">{c.phone}</p>
                               )}
                             </button>
                           </li>
@@ -488,7 +492,7 @@ export function PaymentCheckout({
                     <button
                       type="button"
                       onClick={() => onShowNewCustomerForm(true)}
-                      className="flex w-full items-center justify-center gap-1.5 text-xs font-medium text-amber-200"
+                      className="flex w-full items-center justify-center gap-1.5 text-xs font-medium text-amber-800"
                     >
                       <UserPlus className="h-3.5 w-3.5" />
                       Cadastrar novo cliente
@@ -496,51 +500,51 @@ export function PaymentCheckout({
                   </div>
                 )}
                 {triedSubmit && customerMissing && (
-                  <p className="text-xs text-red-400">Selecione um cliente para o fiado.</p>
+                  <p className="text-xs text-red-600">Selecione um cliente para o fiado.</p>
                 )}
               </div>
             )}
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-white/50">Observações</Label>
+            <div className="space-y-1.5 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <Label className="text-xs text-slate-500">Observações</Label>
               <Textarea
                 value={notes}
                 onChange={(e) => onNotesChange(e.target.value)}
                 rows={2}
                 placeholder="Opcional..."
-                className="resize-none border-white/15 bg-[#0a1628] text-sm text-white"
+                className="resize-none border-slate-300 bg-slate-50 text-sm"
               />
             </div>
           </div>
 
-          {/* Direita: totais grandes */}
+          {/* Direita: totais grandes — mesma família de cor do PDV */}
           <div className="space-y-2">
-            <TotalBlock label="Total" value={total} tone="teal" big />
+            <TotalBlock label="Total" value={total} tone="navy" big />
             <TotalBlock label="Pago" value={paid} tone="blue" />
             {covered ? (
-              <TotalBlock label="Troco" value={change} tone="orange" big />
+              <TotalBlock label="Troco" value={change} tone="green" big />
             ) : (
-              <TotalBlock label="Faltando" value={missing} tone="red" big />
+              <TotalBlock label="Faltando" value={missing} tone="amber" big />
             )}
-            <p className="pt-2 text-[11px] leading-relaxed text-white/40">
-              Ex.: compra R$ 100 → digite <span className="font-mono text-white/60">24</span> Enter{' '}
-              <span className="font-mono text-white/60">50</span> Enter (PIX), depois{' '}
-              <span className="font-mono text-white/60">01</span> Enter{' '}
-              <span className="font-mono text-white/60">50</span> Enter (dinheiro) e confirme.
+            <p className="pt-2 text-[11px] leading-relaxed text-slate-500">
+              Ex.: compra R$ 100 → digite <span className="font-mono text-slate-700">24</span> Enter{' '}
+              <span className="font-mono text-slate-700">50</span> Enter (PIX), depois{' '}
+              <span className="font-mono text-slate-700">01</span> Enter{' '}
+              <span className="font-mono text-slate-700">50</span> Enter (dinheiro) e confirme.
             </p>
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3 border-t border-white/10 p-4">
+        <div className="flex shrink-0 items-center gap-3 border-t border-slate-200 bg-white p-4">
           <Button
             variant="outline"
-            className="h-12 border-white/15 bg-transparent text-white hover:bg-white/5"
+            className="h-12"
             onClick={onClose}
           >
             Não · Esc
           </Button>
           <Button
-            className="h-12 flex-1 bg-emerald-500 text-base font-bold text-[#04120c] hover:bg-emerald-400 disabled:opacity-40"
+            className="h-12 flex-1 bg-emerald-500 text-base font-bold text-emerald-950 hover:bg-emerald-400 disabled:opacity-40"
             onClick={onConfirm}
             disabled={isSubmitting || !covered}
           >
@@ -553,7 +557,7 @@ export function PaymentCheckout({
               <>
                 <CheckCircle2 className="mr-2 h-5 w-5" />
                 Sim — confirmar
-                <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-[11px]">
+                <kbd className="ml-2 rounded bg-black/10 px-1.5 py-0.5 font-mono text-[11px]">
                   F7
                 </kbd>
               </>
@@ -573,18 +577,18 @@ function TotalBlock({
 }: {
   label: string
   value: number
-  tone: 'teal' | 'blue' | 'orange' | 'red'
+  tone: 'navy' | 'blue' | 'green' | 'amber'
   big?: boolean
 }) {
   const tones = {
-    teal: 'from-teal-600 to-teal-700',
-    blue: 'from-sky-600 to-blue-700',
-    orange: 'from-orange-500 to-amber-600',
-    red: 'from-red-600 to-rose-700',
+    navy: 'bg-[#1e3a5f] text-white',
+    blue: 'bg-[#234e7a] text-white',
+    green: 'bg-emerald-500 text-emerald-950',
+    amber: 'bg-amber-400 text-amber-950',
   }
   return (
-    <div className={`rounded-xl bg-gradient-to-br ${tones[tone]} px-4 py-3 text-white shadow-md`}>
-      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-white/80">{label}</p>
+    <div className={`rounded-xl px-4 py-3 shadow-sm ${tones[tone]}`}>
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] opacity-80">{label}</p>
       <p
         className={`mt-1 font-black tabular-nums leading-none ${
           big ? 'text-4xl sm:text-5xl' : 'text-2xl'
