@@ -3,8 +3,9 @@ import type { Product, Category } from '@/types/database'
 
 // Must be hoisted — mock registers before the tested module is imported.
 const fromMock = vi.fn()
+const rpcMock = vi.fn()
 vi.mock('@/lib/supabase/client', () => ({
-  createClient: vi.fn(() => ({ from: fromMock })),
+  createClient: vi.fn(() => ({ from: fromMock, rpc: rpcMock })),
 }))
 
 import { getDB } from './db'
@@ -76,6 +77,7 @@ beforeEach(async () => {
   await db.customers.clear()
   await db.syncMeta.clear()
   vi.clearAllMocks()
+  rpcMock.mockResolvedValue({ data: 'store-1', error: null })
 })
 
 describe('syncProducts', () => {
@@ -147,11 +149,10 @@ describe('syncAll', () => {
   })
 
   it('captures a per-entity error without aborting the other syncs', async () => {
-    let call = 0
-    fromMock.mockImplementation(() => {
-      call++
-      // First call (products): throw a real Error so err.message is preserved.
-      if (call === 1) return chain({ data: null, error: new Error('products failed') })
+    fromMock.mockImplementation((table: string) => {
+      if (table === 'products') {
+        return chain({ data: null, error: new Error('products failed') })
+      }
       return chain({ data: [], error: null })
     })
 
