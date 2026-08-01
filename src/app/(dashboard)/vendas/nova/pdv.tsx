@@ -1,14 +1,13 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Loader2,
   CheckCircle2,
-  ShoppingCart,
   Search,
-  Receipt,
   CreditCard,
   Banknote,
   CloudOff,
@@ -18,9 +17,10 @@ import {
   UserPlus,
   Phone,
   Tag,
+  ArrowLeft,
+  Keyboard,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -69,6 +69,8 @@ export function PDV({ avulsoProduct }: PDVProps) {
   const [offlineSale, setOfflineSale] = useState<OfflineSaleConfirmation | null>(null)
   const [triedSubmit, setTriedSubmit] = useState(false)
   const [cashReceivedRaw, setCashReceivedRaw] = useState('')
+  const [checkoutOpen, setCheckoutOpen] = useState(false)
+  const [clock, setClock] = useState('')
 
   // --- Fiado: seleção de cliente ---
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerBalance | null>(null)
@@ -80,6 +82,23 @@ export function PDV({ avulsoProduct }: PDVProps) {
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false)
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    const tick = () => {
+      setClock(
+        new Intl.DateTimeFormat('pt-BR', {
+          timeZone: 'America/Sao_Paulo',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        }).format(new Date()),
+      )
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const paymentMissing = !paymentMethod
   const customerMissing = paymentMethod === 'fiado' && !selectedCustomer
@@ -346,6 +365,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
     setNotes('')
     setCashReceivedRaw('')
     setTriedSubmit(false)
+    setCheckoutOpen(false)
     setSelectedCustomer(null)
     setCustomerQuery('')
     setCustomerResults([])
@@ -359,48 +379,112 @@ export function PDV({ avulsoProduct }: PDVProps) {
     handleAddItem({ product: avulsoProduct, quantity: 1, customPrice: 0 })
   }
 
+  function openCheckout() {
+    if (cartItems.length === 0) {
+      toast.error('Adicione pelo menos um produto')
+      return
+    }
+    setCheckoutOpen(true)
+  }
+
   const canSubmit = !isSubmitting && cartItems.length > 0
+  const lastItem = cartItems[cartItems.length - 1]
+  const lastLineTotal = lastItem
+    ? (lastItem.customPrice ?? lastItem.product.sale_price) * lastItem.quantity
+    : 0
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement | null)?.tagName
+      const typing =
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement)?.isContentEditable
+
+      if (e.key === 'F10') {
+        e.preventDefault()
+        if (checkoutOpen) {
+          if (canSubmit) void handleSubmit()
+        } else {
+          openCheckout()
+        }
+        return
+      }
+      if (e.key === 'F4' && !typing) {
+        e.preventDefault()
+        handleAddAvulso()
+        return
+      }
+      if (e.key === 'Escape' && checkoutOpen) {
+        e.preventDefault()
+        setCheckoutOpen(false)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state intentionally
+  }, [checkoutOpen, canSubmit, cartItems.length, avulsoProduct])
 
   return (
-    <div className="space-y-4 pb-24 lg:pb-0">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#07111f] text-white font-[family-name:var(--font-poppins),sans-serif]">
+      {/* Top bar */}
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[#0b1a2e] px-3 py-2.5 sm:px-5">
+        <div className="flex items-center gap-3 min-w-0">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-white/55 hover:bg-white/5 hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Sair
+          </Link>
+          <div className="hidden h-5 w-px bg-white/10 sm:block" />
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold tracking-wide text-white">CaixaDoBairro</p>
+            <p className="truncate text-[11px] text-white/40">PDV do bairro</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-300 ring-1 ring-emerald-400/30">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            Caixa aberto
+          </span>
+          <span className="hidden tabular-nums text-sm font-semibold text-white/70 sm:inline">
+            {clock}
+          </span>
+        </div>
+      </header>
+
       {offlineSale && (
-        <div className="relative rounded-xl border border-amber-300 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 shadow-sm">
+        <div className="relative shrink-0 border-b border-amber-400/30 bg-amber-500/15 px-4 py-3">
           <button
             type="button"
             onClick={() => setOfflineSale(null)}
             aria-label="Fechar"
-            className="absolute right-3 top-3 text-amber-500 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-200"
+            className="absolute right-3 top-3 text-amber-200/70 hover:text-amber-100"
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="flex items-center gap-2 text-amber-900 dark:text-amber-300">
+          <div className="flex items-center gap-2 text-amber-100">
             <CloudOff className="h-5 w-5" />
             <p className="font-semibold">Venda salva offline</p>
           </div>
-          <p className="mt-1 text-sm text-amber-800 dark:text-amber-400">
-            Recibo provisório — será enviada ao servidor automaticamente quando a
-            conexão voltar.
+          <p className="mt-1 text-sm text-amber-100/70">
+            Recibo provisório — sobe sozinho quando a internet voltar.
           </p>
-          <div className="mt-3 rounded-lg bg-white/70 dark:bg-white/5 border border-amber-200 dark:border-amber-500/20 divide-y divide-amber-100 dark:divide-white/5 text-sm">
-            {offlineSale.items.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between px-3 py-1.5">
-                <span className="text-slate-700 dark:text-slate-300">
-                  {item.quantity}× {item.name}
-                </span>
-                <span className="tabular-nums text-slate-600 dark:text-slate-400">
-                  {formatCurrency(item.unit_price * item.quantity)}
-                </span>
-              </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {offlineSale.items.slice(0, 4).map((item, idx) => (
+              <span key={idx} className="rounded bg-black/20 px-2 py-1 text-xs text-amber-50">
+                {item.quantity}× {item.name}
+              </span>
             ))}
-            <div className="flex items-center justify-between px-3 py-2 font-semibold text-slate-900 dark:text-slate-100">
-              <span>Total · {offlineSale.paymentLabel}</span>
-              <span className="tabular-nums">{formatCurrency(offlineSale.total)}</span>
-            </div>
+            <span className="rounded bg-black/30 px-2 py-1 text-xs font-semibold text-white">
+              {formatCurrency(offlineSale.total)} · {offlineSale.paymentLabel}
+            </span>
           </div>
           <Button
             onClick={handlePrintOffline}
             variant="outline"
-            className="mt-3 border-amber-300 dark:border-amber-500/30 bg-white dark:bg-amber-500/10 text-amber-900 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+            size="sm"
+            className="mt-3 border-amber-300/40 bg-transparent text-amber-50 hover:bg-amber-500/20"
           >
             <Printer className="h-4 w-4 mr-1.5" />
             Imprimir recibo
@@ -408,67 +492,141 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Search className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                Buscar produto
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <ProductSearch onAdd={handleAddItem} />
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+        {/* Main: bipe + lista */}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col border-white/10 lg:border-r">
+          <div className="shrink-0 space-y-2 border-b border-white/10 bg-[#0a1628] px-3 py-3 sm:px-5">
+            <ProductSearch onAdd={handleAddItem} variant="cashier" />
+            <div className="flex flex-wrap items-center gap-2">
               {avulsoProduct && (
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-full border-dashed border-slate-300 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-400 transition-colors"
                   onClick={handleAddAvulso}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-white/20 px-3 py-1.5 text-xs font-medium text-white/60 hover:border-emerald-400/40 hover:bg-emerald-500/10 hover:text-emerald-200"
                 >
-                  <Tag className="h-3.5 w-3.5 mr-1.5" />
-                  Item Avulso
-                </Button>
+                  <Tag className="h-3.5 w-3.5" />
+                  Item avulso
+                  <kbd className="ml-1 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] text-white/45">
+                    F4
+                  </kbd>
+                </button>
               )}
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <ShoppingCart className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                Carrinho
-              </CardTitle>
-              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
-                {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-white/35">
+                <Keyboard className="h-3 w-3" />
+                F10 finalizar · Esc fechar pagamento
               </span>
-            </CardHeader>
-            <CardContent>
-              <Cart
-                items={cartItems}
-                onUpdateQty={handleUpdateQty}
-                onUpdatePrice={handleUpdatePrice}
-                onUpdateDescription={handleUpdateDescription}
-                onRemove={handleRemove}
-              />
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
 
-        <div>
-          <Card className="lg:sticky lg:top-24 border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm overflow-hidden">
-            <CardHeader className="bg-slate-50/60 dark:bg-white/3 border-b border-slate-100 dark:border-white/5 pb-3">
-              <CardTitle className="text-sm font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Receipt className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                Finalizar venda
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5 pt-5">
+          <div className="min-h-0 flex-1 overflow-hidden px-1 sm:px-2">
+            <Cart
+              items={cartItems}
+              onUpdateQty={handleUpdateQty}
+              onUpdatePrice={handleUpdatePrice}
+              onUpdateDescription={handleUpdateDescription}
+              onRemove={handleRemove}
+              variant="cashier"
+            />
+          </div>
+        </section>
+
+        {/* Right rail: total (customer-facing) */}
+        <aside className="flex w-full shrink-0 flex-col border-t border-white/10 bg-[#0b1a2e] lg:w-[360px] lg:border-t-0 xl:w-[400px]">
+          <div className="flex-1 space-y-4 p-4 sm:p-5">
+            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
+                Último item
+              </p>
+              {lastItem ? (
+                <>
+                  <p className="mt-2 line-clamp-2 text-xl font-bold leading-tight text-white">
+                    {lastItem.product.name}
+                  </p>
+                  <p className="mt-1 text-sm text-white/45">
+                    {lastItem.quantity} ×{' '}
+                    {formatCurrency(lastItem.customPrice ?? lastItem.product.sale_price)}
+                  </p>
+                  <p className="mt-3 text-3xl font-extrabold tabular-nums text-emerald-300">
+                    {formatCurrency(lastLineTotal)}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-3 text-sm text-white/35">Nenhum item ainda</p>
+              )}
+            </div>
+
+            <div className="rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-5 shadow-lg shadow-emerald-950/40">
+              <div className="flex items-center justify-between text-emerald-50/80">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em]">Total</span>
+                <span className="text-xs font-medium">
+                  {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+                </span>
+              </div>
+              <p className="mt-2 text-5xl font-black leading-none tracking-tight tabular-nums text-white sm:text-6xl">
+                {formatCurrency(total)}
+              </p>
+            </div>
+
+            {paymentMethod === 'cash' && hasCashEntered && (
+              <div
+                className={`rounded-2xl px-4 py-4 ${
+                  cashShort ? 'bg-red-600' : 'bg-[#10233a] ring-1 ring-white/10'
+                }`}
+              >
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+                  {cashShort ? 'Falta receber' : 'Troco'}
+                </p>
+                <p className="mt-1 text-4xl font-black tabular-nums text-white">
+                  {formatCurrency(Math.abs(change))}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="shrink-0 border-t border-white/10 p-4 sm:p-5">
+            <Button
+              className="h-14 w-full bg-emerald-500 text-base font-bold text-[#04120c] hover:bg-emerald-400 disabled:opacity-40"
+              onClick={openCheckout}
+              disabled={cartItems.length === 0 || isSubmitting}
+            >
+              Finalizar venda
+              <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-[11px] font-semibold">
+                F10
+              </kbd>
+            </Button>
+          </div>
+        </aside>
+      </div>
+
+      {/* Checkout sheet */}
+      {checkoutOpen && (
+        <div className="absolute inset-0 z-10 flex items-stretch justify-end bg-black/55 backdrop-blur-[2px]">
+          <div
+            className="absolute inset-0"
+            onClick={() => setCheckoutOpen(false)}
+            aria-hidden
+          />
+          <div className="relative flex h-full w-full max-w-md flex-col border-l border-white/10 bg-[#0d1c31] shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+              <div>
+                <p className="text-sm font-bold text-white">Pagamento</p>
+                <p className="text-xs text-white/45">{formatCurrency(total)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCheckoutOpen(false)}
+                className="rounded-md p-2 text-white/50 hover:bg-white/5 hover:text-white"
+                aria-label="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                  <CreditCard className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                  Método de pagamento <span className="text-red-500">*</span>
+                <Label className="text-xs font-medium text-white/70 flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  Método de pagamento <span className="text-red-400">*</span>
                 </Label>
                 <Select
                   value={paymentMethod}
@@ -489,8 +647,8 @@ export function PDV({ avulsoProduct }: PDVProps) {
                     aria-invalid={triedSubmit && paymentMissing}
                     className={
                       triedSubmit && paymentMissing
-                        ? 'h-10 border-red-500 ring-2 ring-red-100 dark:ring-red-900/30'
-                        : 'h-10 border-slate-200 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-200'
+                        ? 'h-11 border-red-500 bg-[#0a1628] text-white'
+                        : 'h-11 border-white/15 bg-[#0a1628] text-white'
                     }
                   >
                     <SelectValue placeholder="Selecione..." />
@@ -504,66 +662,59 @@ export function PDV({ avulsoProduct }: PDVProps) {
                   </SelectContent>
                 </Select>
                 {triedSubmit && paymentMissing && (
-                  <p className="text-red-500 text-xs">
-                    Selecione o método de pagamento para finalizar.
-                  </p>
+                  <p className="text-red-400 text-xs">Selecione o método de pagamento.</p>
                 )}
               </div>
 
               {paymentMethod === 'cash' && (
-                <div className="rounded-lg border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50/60 dark:bg-emerald-500/8 p-3 space-y-3">
-                  <div className="space-y-1.5">
-                    <Label
-                      htmlFor="cash-received"
-                      className="text-xs font-medium text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5"
-                    >
-                      <Banknote className="h-3.5 w-3.5 text-emerald-700 dark:text-emerald-400" />
-                      Valor recebido
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-500 dark:text-slate-400 pointer-events-none">
-                        R$
-                      </span>
-                      <Input
-                        id="cash-received"
-                        type="text"
-                        inputMode="decimal"
-                        value={cashReceivedRaw}
-                        onChange={(e) => {
-                          const cleaned = e.target.value.replace(/[^\d,.]/g, '')
-                          setCashReceivedRaw(cleaned)
-                        }}
-                        placeholder="0,00"
-                        autoComplete="off"
-                        className="h-10 pl-9 bg-white dark:bg-slate-800/60 border-emerald-200 dark:border-emerald-500/20 dark:text-slate-200 focus-visible:border-emerald-500 focus-visible:ring-emerald-200 dark:focus-visible:ring-emerald-900/30"
-                      />
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[total, 50, 100, 200].map((preset, idx) => (
-                        <button
-                          key={`${preset}-${idx}`}
-                          type="button"
-                          onClick={() => setCashReceivedRaw(preset.toFixed(2).replace('.', ','))}
-                          className="px-2 py-0.5 text-[11px] font-medium rounded-md bg-white dark:bg-slate-700/50 border border-emerald-200 dark:border-emerald-500/20 text-emerald-800 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/15 transition-colors"
-                        >
-                          {idx === 0 ? 'Valor exato' : formatCurrency(preset)}
-                        </button>
-                      ))}
-                    </div>
+                <div className="space-y-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
+                  <Label
+                    htmlFor="cash-received"
+                    className="text-xs font-medium text-emerald-200 flex items-center gap-1.5"
+                  >
+                    <Banknote className="h-3.5 w-3.5" />
+                    Valor recebido
+                  </Label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-white/40">
+                      R$
+                    </span>
+                    <Input
+                      id="cash-received"
+                      type="text"
+                      inputMode="decimal"
+                      value={cashReceivedRaw}
+                      onChange={(e) => {
+                        const cleaned = e.target.value.replace(/[^\d,.]/g, '')
+                        setCashReceivedRaw(cleaned)
+                      }}
+                      placeholder="0,00"
+                      autoComplete="off"
+                      className="h-11 border-emerald-400/30 bg-[#0a1628] pl-9 text-white"
+                    />
                   </div>
-
+                  <div className="flex flex-wrap gap-1.5">
+                    {[total, 50, 100, 200].map((preset, idx) => (
+                      <button
+                        key={`${preset}-${idx}`}
+                        type="button"
+                        onClick={() => setCashReceivedRaw(preset.toFixed(2).replace('.', ','))}
+                        className="rounded-md border border-emerald-400/25 bg-black/20 px-2 py-1 text-[11px] font-medium text-emerald-100 hover:bg-emerald-500/20"
+                      >
+                        {idx === 0 ? 'Exato' : formatCurrency(preset)}
+                      </button>
+                    ))}
+                  </div>
                   {hasCashEntered && (
                     <div
-                      className={
-                        cashShort
-                          ? 'rounded-xl bg-red-600 px-4 py-4 shadow-md shadow-red-900/10 text-white'
-                          : 'rounded-xl bg-emerald-600 px-4 py-4 shadow-md shadow-emerald-900/10 text-white'
-                      }
+                      className={`rounded-xl px-4 py-3 text-white ${
+                        cashShort ? 'bg-red-600' : 'bg-emerald-600'
+                      }`}
                     >
                       <p className="text-[11px] font-semibold uppercase tracking-wider opacity-90">
                         {cashShort ? 'Falta receber' : 'Troco a devolver'}
                       </p>
-                      <p className="text-4xl font-bold tabular-nums leading-tight mt-1">
+                      <p className="mt-1 text-3xl font-black tabular-nums">
                         {formatCurrency(Math.abs(change))}
                       </p>
                     </div>
@@ -572,19 +723,21 @@ export function PDV({ avulsoProduct }: PDVProps) {
               )}
 
               {paymentMethod === 'fiado' && (
-                <div className="rounded-lg border border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/8 p-3 space-y-3">
-                  <Label className="text-xs font-medium text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-                    <UserRound className="h-3.5 w-3.5 text-amber-700 dark:text-amber-400" />
-                    Cliente <span className="text-red-500">*</span>
+                <div className="space-y-3 rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
+                  <Label className="text-xs font-medium text-amber-100 flex items-center gap-1.5">
+                    <UserRound className="h-3.5 w-3.5" />
+                    Cliente <span className="text-red-400">*</span>
                   </Label>
 
                   {selectedCustomer ? (
-                    <div className="rounded-md bg-white dark:bg-white/5 border border-amber-200 dark:border-amber-500/20 px-3 py-2 space-y-1.5">
+                    <div className="rounded-md border border-amber-400/20 bg-black/20 px-3 py-2 space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{selectedCustomer.full_name}</p>
+                          <p className="truncate text-sm font-medium text-white">
+                            {selectedCustomer.full_name}
+                          </p>
                           {selectedCustomer.phone && (
-                            <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                            <p className="mt-0.5 flex items-center gap-1 text-xs text-white/45">
                               <Phone className="h-3 w-3" />
                               {selectedCustomer.phone}
                             </p>
@@ -592,19 +745,22 @@ export function PDV({ avulsoProduct }: PDVProps) {
                         </div>
                         <button
                           type="button"
-                          onClick={() => { setSelectedCustomer(null); setCustomerQuery('') }}
-                          className="text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 shrink-0"
+                          onClick={() => {
+                            setSelectedCustomer(null)
+                            setCustomerQuery('')
+                          }}
+                          className="shrink-0 text-white/40 hover:text-white"
                           aria-label="Trocar cliente"
                         >
                           <X className="h-4 w-4" />
                         </button>
                       </div>
                       {selectedCustomer.current_debt > 0 ? (
-                        <p className="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded px-2 py-1">
+                        <p className="rounded bg-red-500/15 px-2 py-1 text-xs font-medium text-red-300">
                           Possui {formatCurrency(selectedCustomer.current_debt)} em aberto
                         </p>
                       ) : (
-                        <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 rounded px-2 py-1">
+                        <p className="rounded bg-emerald-500/15 px-2 py-1 text-xs font-medium text-emerald-300">
                           Sem débitos pendentes
                         </p>
                       )}
@@ -615,7 +771,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
                         placeholder="Nome completo *"
                         value={newCustomerName}
                         onChange={(e) => setNewCustomerName(e.target.value)}
-                        className="h-9 text-sm border-amber-200 dark:border-amber-500/20 bg-white dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-500"
+                        className="h-9 border-amber-400/25 bg-[#0a1628] text-sm text-white"
                         autoFocus
                       />
                       <Input
@@ -623,23 +779,31 @@ export function PDV({ avulsoProduct }: PDVProps) {
                         value={newCustomerPhone}
                         onChange={(e) => setNewCustomerPhone(formatPhone(e.target.value))}
                         inputMode="numeric"
-                        className="h-9 text-sm border-amber-200 dark:border-amber-500/20 bg-white dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-500"
+                        className="h-9 border-amber-400/25 bg-[#0a1628] text-sm text-white"
                       />
                       <div className="flex gap-2">
                         <Button
                           type="button"
                           size="sm"
-                          className="flex-1 h-8 bg-amber-600 hover:bg-amber-700 text-white text-xs"
-                          disabled={!newCustomerName.trim() || !newCustomerPhone.trim() || isCreatingCustomer}
+                          className="h-8 flex-1 bg-amber-600 text-xs text-white hover:bg-amber-500"
+                          disabled={
+                            !newCustomerName.trim() ||
+                            !newCustomerPhone.trim() ||
+                            isCreatingCustomer
+                          }
                           onClick={handleCreateCustomer}
                         >
-                          {isCreatingCustomer ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Cadastrar'}
+                          {isCreatingCustomer ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            'Cadastrar'
+                          )}
                         </Button>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-8 text-xs border-amber-200 dark:border-amber-500/20 dark:text-slate-300 dark:hover:bg-white/5"
+                          className="h-8 border-white/15 bg-transparent text-xs text-white/70 hover:bg-white/5"
                           onClick={() => setShowNewCustomerForm(false)}
                         >
                           Cancelar
@@ -649,44 +813,54 @@ export function PDV({ avulsoProduct }: PDVProps) {
                   ) : (
                     <div className="space-y-2">
                       <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
+                        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
                         <Input
                           placeholder="Buscar por nome ou telefone..."
                           value={customerQuery}
                           onChange={(e) => setCustomerQuery(e.target.value)}
-                          className="h-9 pl-8 text-sm border-amber-200 dark:border-amber-500/20 bg-white dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-500"
+                          className="h-9 border-amber-400/25 bg-[#0a1628] pl-8 text-sm text-white"
                           autoFocus
                         />
                         {isSearchingCustomer && (
-                          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 animate-spin text-slate-400 dark:text-slate-500" />
+                          <Loader2 className="absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 animate-spin text-white/40" />
                         )}
                       </div>
 
                       {customerResults.length > 0 && (
-                        <ul className="rounded-md border border-amber-200 dark:border-amber-500/20 bg-white dark:bg-slate-800 divide-y divide-slate-100 dark:divide-white/5 max-h-36 overflow-y-auto">
+                        <ul className="max-h-36 overflow-y-auto divide-y divide-white/5 rounded-md border border-white/10 bg-[#0a1628]">
                           {customerResults.map((c) => (
                             <li key={c.id}>
                               <button
                                 type="button"
-                                className="w-full text-left px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-500/10 transition-colors"
-                                onClick={() => { setSelectedCustomer(c); setCustomerQuery(''); setCustomerResults([]) }}
+                                className="w-full px-3 py-2 text-left transition-colors hover:bg-amber-500/10"
+                                onClick={() => {
+                                  setSelectedCustomer(c)
+                                  setCustomerQuery('')
+                                  setCustomerResults([])
+                                }}
                               >
-                                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{c.full_name}</p>
-                                {c.phone && <p className="text-xs text-slate-500 dark:text-slate-400">{c.phone}</p>}
+                                <p className="text-sm font-medium text-white">{c.full_name}</p>
+                                {c.phone && (
+                                  <p className="text-xs text-white/40">{c.phone}</p>
+                                )}
                               </button>
                             </li>
                           ))}
                         </ul>
                       )}
 
-                      {customerQuery.trim() && !isSearchingCustomer && customerResults.length === 0 && (
-                        <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-1">Nenhum cliente encontrado.</p>
-                      )}
+                      {customerQuery.trim() &&
+                        !isSearchingCustomer &&
+                        customerResults.length === 0 && (
+                          <p className="py-1 text-center text-xs text-white/40">
+                            Nenhum cliente encontrado.
+                          </p>
+                        )}
 
                       <button
                         type="button"
                         onClick={() => setShowNewCustomerForm(true)}
-                        className="w-full flex items-center justify-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 font-medium py-1"
+                        className="flex w-full items-center justify-center gap-1.5 py-1 text-xs font-medium text-amber-200 hover:text-amber-100"
                       >
                         <UserPlus className="h-3.5 w-3.5" />
                         Cadastrar novo cliente
@@ -695,13 +869,13 @@ export function PDV({ avulsoProduct }: PDVProps) {
                   )}
 
                   {triedSubmit && customerMissing && (
-                    <p className="text-red-500 text-xs">Selecione um cliente para continuar.</p>
+                    <p className="text-xs text-red-400">Selecione um cliente para continuar.</p>
                   )}
                 </div>
               )}
 
               <div className="space-y-1.5">
-                <Label htmlFor="notes" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                <Label htmlFor="notes" className="text-xs font-medium text-white/70">
                   Observações
                 </Label>
                 <Textarea
@@ -710,25 +884,14 @@ export function PDV({ avulsoProduct }: PDVProps) {
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Observações opcionais..."
                   rows={2}
-                  className="border-slate-200 dark:border-white/10 dark:bg-slate-800/60 dark:text-slate-200 dark:placeholder:text-slate-500 text-sm resize-none"
+                  className="resize-none border-white/15 bg-[#0a1628] text-sm text-white placeholder:text-white/30"
                 />
               </div>
+            </div>
 
-              <div className="rounded-lg bg-slate-900 dark:bg-slate-950/80 dark:border dark:border-white/8 text-white p-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Subtotal ({itemCount} {itemCount === 1 ? 'item' : 'itens'})</span>
-                  <span className="tabular-nums">{formatCurrency(total)}</span>
-                </div>
-                <div className="mt-2 pt-2 border-t border-white/10 flex items-center justify-between">
-                  <span className="text-sm text-slate-300 font-medium">Total</span>
-                  <span className="text-3xl font-bold tracking-tight tabular-nums">
-                    {formatCurrency(total)}
-                  </span>
-                </div>
-              </div>
-
+            <div className="shrink-0 border-t border-white/10 p-4">
               <Button
-                className="hidden lg:flex w-full h-12 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold text-base shadow-sm shadow-green-900/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="h-14 w-full bg-emerald-500 text-base font-bold text-[#04120c] hover:bg-emerald-400 disabled:opacity-40"
                 onClick={handleSubmit}
                 disabled={!canSubmit}
               >
@@ -741,49 +904,13 @@ export function PDV({ avulsoProduct }: PDVProps) {
                   <>
                     <CheckCircle2 className="mr-2 h-5 w-5" />
                     Confirmar venda
+                    <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-[11px]">
+                      F10
+                    </kbd>
                   </>
                 )}
               </Button>
-
-              {cartItems.length === 0 && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-                  Adicione produtos ao carrinho para finalizar.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Barra fixa de checkout (mobile only) */}
-      {cartItems.length > 0 && (
-        <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-slate-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-slate-900/80 px-4 py-3 shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]">
-          <div className="flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
-                {itemCount} {itemCount === 1 ? 'item' : 'itens'}
-              </p>
-              <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-slate-100 leading-tight">
-                {formatCurrency(total)}
-              </p>
             </div>
-            <Button
-              className="h-12 px-6 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white font-semibold shadow-sm disabled:opacity-50 transition-colors"
-              onClick={handleSubmit}
-              disabled={!canSubmit}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Enviando...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-5 w-5" />
-                  Confirmar
-                </>
-              )}
-            </Button>
           </div>
         </div>
       )}

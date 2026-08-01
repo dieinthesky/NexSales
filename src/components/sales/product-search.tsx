@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
@@ -16,9 +16,12 @@ import type { Product, CartItem } from '@/types/database'
 
 interface ProductSearchProps {
   onAdd: (item: CartItem) => void
+  /** Fullscreen cashier look — bigger bipe field, dark contrast. */
+  variant?: 'default' | 'cashier'
 }
 
-export function ProductSearch({ onAdd }: ProductSearchProps) {
+export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps) {
+  const isCashier = variant === 'cashier'
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Product[]>([])
   const [loading, setLoading] = useState(false)
@@ -201,14 +204,23 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
     <div className="space-y-2">
       {/* ── Search input ── */}
       <div className="relative">
-        <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <Search
+          aria-hidden="true"
+          className={`absolute left-3 top-1/2 -translate-y-1/2 ${
+            isCashier ? 'h-5 w-5 text-emerald-300/70' : 'h-4 w-4 text-slate-400'
+          }`}
+        />
         <Input
           ref={searchRef}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleSearchKeyDown}
           placeholder="Bipe o código de barras OU digite o nome do produto..."
-          className="pl-9 pr-10 h-11 text-sm"
+          className={
+            isCashier
+              ? 'h-14 border-white/15 bg-[#0a1628] pl-11 pr-12 text-base text-white placeholder:text-white/35 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20'
+              : 'pl-9 pr-10 h-11 text-sm'
+          }
           autoComplete="off"
           spellCheck={false}
           inputMode="text"
@@ -218,16 +230,37 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
           aria-expanded={results.length > 0}
           aria-controls="product-results"
         />
-        <ScanBarcode aria-hidden="true" className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+        <ScanBarcode
+          aria-hidden="true"
+          className={`absolute right-3 top-1/2 -translate-y-1/2 ${
+            isCashier ? 'h-5 w-5 text-emerald-300/70' : 'h-4 w-4 text-slate-400'
+          }`}
+        />
       </div>
 
       {/* ── Staged product: quantity confirmation ── */}
       {staged && (
-        <div className="rounded-lg border-2 border-primary/60 bg-primary/5 dark:bg-primary/10 p-3 space-y-3 shadow-sm">
+        <div
+          className={
+            isCashier
+              ? 'rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 space-y-3'
+              : 'rounded-lg border-2 border-primary/60 bg-primary/5 dark:bg-primary/10 p-3 space-y-3 shadow-sm'
+          }
+        >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{staged.product.name}</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              <p
+                className={`font-semibold truncate ${
+                  isCashier ? 'text-lg text-white' : 'text-sm text-slate-900 dark:text-slate-100'
+                }`}
+              >
+                {staged.product.name}
+              </p>
+              <p
+                className={`mt-0.5 ${
+                  isCashier ? 'text-sm text-white/50' : 'text-xs text-slate-500 dark:text-slate-400'
+                }`}
+              >
                 Cód: {staged.product.code} · Estoque: {staged.product.stock_quantity} ·{' '}
                 {formatCurrency(staged.product.sale_price)}
               </p>
@@ -235,7 +268,11 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
             <button
               type="button"
               onClick={cancelStaged}
-              className="shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-0.5"
+              className={
+                isCashier
+                  ? 'shrink-0 text-white/40 hover:text-white mt-0.5'
+                  : 'shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-0.5'
+              }
               aria-label="Cancelar"
             >
               <X className="h-4 w-4" />
@@ -243,14 +280,30 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-400 shrink-0">Quantidade:</span>
+            <span
+              className={`shrink-0 font-medium ${
+                isCashier ? 'text-sm text-white/60' : 'text-xs text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Quantidade:
+            </span>
 
-            <div className="inline-flex items-center rounded-md border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800 overflow-hidden">
+            <div
+              className={`inline-flex items-center overflow-hidden rounded-md border ${
+                isCashier
+                  ? 'border-white/15 bg-[#0a1628]'
+                  : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setStagedQty(staged.quantity - 1)}
                 disabled={staged.quantity <= 1}
-                className="h-9 w-9 inline-flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8 disabled:opacity-40 transition-colors"
+                className={`h-9 w-9 inline-flex items-center justify-center disabled:opacity-40 transition-colors ${
+                  isCashier
+                    ? 'text-white/70 hover:bg-white/10'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8'
+                }`}
                 aria-label="Diminuir"
               >
                 <Minus className="h-4 w-4" />
@@ -264,7 +317,11 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
                 onChange={(e) => setStagedQty(parseInt(e.target.value, 10) || 1)}
                 onFocus={(e) => e.currentTarget.select()}
                 onKeyDown={handleStagedQtyKeyDown}
-                className="w-14 h-9 text-center text-base font-bold tabular-nums text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 border-x border-slate-200 dark:border-white/10 focus:outline-none focus:bg-primary/10 dark:focus:bg-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className={`w-14 h-9 text-center text-base font-bold tabular-nums border-x focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                  isCashier
+                    ? 'text-white bg-[#0a1628] border-white/15 focus:bg-emerald-500/10'
+                    : 'text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 focus:bg-primary/10 dark:focus:bg-primary/20'
+                }`}
                 aria-label="Quantidade"
               />
               <button
@@ -274,7 +331,11 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
                   staged.product.track_stock &&
                   staged.quantity >= staged.product.stock_quantity
                 }
-                className="h-9 w-9 inline-flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8 disabled:opacity-40 transition-colors"
+                className={`h-9 w-9 inline-flex items-center justify-center disabled:opacity-40 transition-colors ${
+                  isCashier
+                    ? 'text-white/70 hover:bg-white/10'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8'
+                }`}
                 aria-label="Aumentar"
               >
                 <Plus className="h-4 w-4" />
@@ -283,22 +344,22 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
 
             <Button
               size="sm"
-              className="h-9 bg-green-600 hover:bg-green-700 text-white font-semibold shadow-sm flex-1 sm:flex-initial"
+              className="h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm flex-1 sm:flex-initial"
               onClick={confirmStaged}
             >
               <CheckCircle2 className="h-4 w-4 mr-1.5" />
-              Adicionar <span className="ml-1 text-green-200 font-normal text-xs hidden sm:inline">↵ Enter</span>
+              Adicionar <span className="ml-1 text-emerald-100 font-normal text-xs hidden sm:inline">↵ Enter</span>
             </Button>
           </div>
 
-          <p className="text-[11px] text-primary font-medium">
+          <p className={`text-[11px] font-medium ${isCashier ? 'text-emerald-300/80' : 'text-primary'}`}>
             Digite a quantidade e pressione <strong>Enter</strong> · <strong>Esc</strong> para cancelar
           </p>
         </div>
       )}
 
       {/* ── Hints (only in search mode, no results open) ── */}
-      {!staged && results.length === 0 && (
+      {!staged && results.length === 0 && !isCashier && (
         <div className="px-1 space-y-1 text-[11px] text-slate-400 dark:text-slate-500">
           <p>
             <ScanBarcode aria-hidden="true" className="inline h-3 w-3 mr-1 -mt-0.5 text-slate-400 dark:text-slate-500" />
@@ -312,7 +373,7 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
       )}
 
       {(loading || scanning) && (
-        <p className="text-xs text-slate-400 px-1">
+        <p className={`px-1 text-xs ${isCashier ? 'text-white/40' : 'text-slate-400'}`}>
           {scanning ? 'Lendo código...' : 'Buscando...'}
         </p>
       )}
@@ -322,7 +383,11 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
         <div
           id="product-results"
           role="listbox"
-          className="border border-slate-200 dark:border-white/8 rounded-lg divide-y divide-slate-100 dark:divide-white/5 bg-white dark:bg-slate-800 shadow-sm max-h-48 sm:max-h-64 overflow-y-auto"
+          className={
+            isCashier
+              ? 'max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0a1628] divide-y divide-white/5 shadow-xl'
+              : 'border border-slate-200 dark:border-white/8 rounded-lg divide-y divide-slate-100 dark:divide-white/5 bg-white dark:bg-slate-800 shadow-sm max-h-48 sm:max-h-64 overflow-y-auto'
+          }
         >
           {results.map((product, index) => (
             <button
@@ -333,41 +398,62 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
               role="option"
               aria-selected={index === highlightedIndex}
               className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors focus:outline-none ${
-                index === highlightedIndex
-                  ? 'bg-primary/5 dark:bg-primary/15 border-l-2 border-l-blue-500'
-                  : 'hover:bg-slate-50 dark:hover:bg-white/5'
+                isCashier
+                  ? index === highlightedIndex
+                    ? 'bg-emerald-500/20 border-l-2 border-l-emerald-400'
+                    : 'hover:bg-white/5'
+                  : index === highlightedIndex
+                    ? 'bg-primary/5 dark:bg-primary/15 border-l-2 border-l-blue-500'
+                    : 'hover:bg-slate-50 dark:hover:bg-white/5'
               }`}
               onClick={() => stageProduct(product)}
               onMouseEnter={() => setHighlightedIndex(index)}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <p className={`text-sm font-medium truncate ${index === highlightedIndex ? 'text-primary/80 dark:text-primary' : 'text-slate-900 dark:text-slate-100'}`}>
+                  <p
+                    className={`text-sm font-medium truncate ${
+                      isCashier
+                        ? index === highlightedIndex
+                          ? 'text-emerald-200'
+                          : 'text-white'
+                        : index === highlightedIndex
+                          ? 'text-primary/80 dark:text-primary'
+                          : 'text-slate-900 dark:text-slate-100'
+                    }`}
+                  >
                     {product.name}
                   </p>
-                  {product.stock_quantity <= 0 && (
+                  {product.track_stock && product.stock_quantity <= 0 && (
                     <span className="shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-400">
                       Sem estoque
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
+                <p className={`text-xs ${isCashier ? 'text-white/40' : 'text-slate-500 dark:text-slate-400'}`}>
                   Cód: {product.code} · Estoque: {product.stock_quantity} ·{' '}
                   {formatCurrency(product.sale_price)}
                 </p>
               </div>
-              <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500 hidden sm:block">
-                {index === highlightedIndex
-                  ? <span className="text-primary/80 dark:text-primary font-medium">↵ Enter</span>
-                  : 'clique ou ↓'}
+              <span
+                className={`shrink-0 text-[11px] hidden sm:block ${
+                  isCashier ? 'text-white/35' : 'text-slate-400 dark:text-slate-500'
+                }`}
+              >
+                {index === highlightedIndex ? (
+                  <span className={isCashier ? 'text-emerald-300 font-medium' : 'text-primary/80 dark:text-primary font-medium'}>
+                    ↵ Enter
+                  </span>
+                ) : (
+                  'clique ou ↓'
+                )}
               </span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Navigation hint when dropdown is open */}
-      {results.length > 1 && !staged && (
+      {results.length > 1 && !staged && !isCashier && (
         <p className="text-[11px] text-slate-400 dark:text-slate-500 px-1">
           <kbd className="px-1 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px] dark:bg-slate-700 dark:text-slate-300">↓ ↑</kbd> navegar ·{' '}
           <kbd className="px-1 py-0.5 rounded bg-slate-100 text-slate-500 font-mono text-[10px] dark:bg-slate-700 dark:text-slate-300">Enter</kbd> selecionar ·{' '}
@@ -376,7 +462,9 @@ export function ProductSearch({ onAdd }: ProductSearchProps) {
       )}
 
       {!loading && !scanning && !staged && query && results.length === 0 && (
-        <p className="text-sm text-slate-400 px-1">Nenhum produto encontrado em estoque.</p>
+        <p className={`px-1 text-sm ${isCashier ? 'text-white/40' : 'text-slate-400'}`}>
+          Nenhum produto encontrado em estoque.
+        </p>
       )}
     </div>
   )
