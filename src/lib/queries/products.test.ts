@@ -104,7 +104,7 @@ describe('getCategories — Electron path', () => {
   it('returns categories from SQLite', async () => {
     isElectronMock.mockReturnValue(true)
     const cats: Category[] = [
-      { id: 'c-1', name: 'Bebidas', created_at: '2026-01-01T00:00:00Z' },
+      { id: 'c-1', name: 'Bebidas', store_id: 'store-1', created_at: '2026-01-01T00:00:00Z' },
     ]
     sqliteGetCategories.mockResolvedValue(cats)
 

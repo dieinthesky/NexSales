@@ -18,10 +18,12 @@ interface RawProductRow {
   is_active: number
   track_stock: number
   image_url: string | null
+  store_id: string
   created_at: string
   updated_at: string
   cat_id: string | null
   cat_name: string | null
+  cat_store_id: string | null
   cat_created_at: string | null
 }
 
@@ -39,10 +41,16 @@ function mapProductRow(row: RawProductRow): ProductWithCategory {
     is_active: row.is_active === 1,
     track_stock: row.track_stock === 1,
     image_url: row.image_url ?? null,
+    store_id: row.store_id,
     created_at: row.created_at,
     updated_at: row.updated_at,
     categories: row.cat_id
-      ? { id: row.cat_id, name: row.cat_name!, created_at: row.cat_created_at! }
+      ? {
+          id: row.cat_id,
+          name: row.cat_name!,
+          store_id: row.cat_store_id!,
+          created_at: row.cat_created_at!,
+        }
       : null,
   }
 }
@@ -87,7 +95,8 @@ export function getProductsPaged(params: ProductsListParams = {}): ProductsListR
   const rows = db
     .prepare(
       `SELECT p.*,
-              c.id AS cat_id, c.name AS cat_name, c.created_at AS cat_created_at
+              c.id AS cat_id, c.name AS cat_name, c.store_id AS cat_store_id,
+              c.created_at AS cat_created_at
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        ${where}
@@ -108,7 +117,8 @@ export function getLowStock(): ProductWithCategory[] {
   const rows = db
     .prepare(
       `SELECT p.*,
-              c.id AS cat_id, c.name AS cat_name, c.created_at AS cat_created_at
+              c.id AS cat_id, c.name AS cat_name, c.store_id AS cat_store_id,
+              c.created_at AS cat_created_at
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        WHERE p.is_active = 1
