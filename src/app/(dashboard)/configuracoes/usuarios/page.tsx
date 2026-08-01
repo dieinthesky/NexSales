@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/auth/roles'
 import { displayName, initials } from '@/lib/utils/user-display'
 import { emailToUsername, isInternalEmail } from '@/lib/supabase/service'
@@ -16,19 +15,10 @@ import { UserRoleSelect } from './user-role-select'
 import { CreateEmployeeDialog } from './create-employee-dialog'
 import { UserActions } from './user-actions'
 import { SavedProfilesManager } from './saved-profiles-manager'
+import { listAdminUsers, type AdminUserRow } from './actions'
 
 export const metadata = {
   title: 'Usuários',
-}
-
-interface AdminUserRow {
-  user_id: string
-  email: string
-  first_name: string | null
-  last_name: string | null
-  role: 'master' | 'admin' | 'employee'
-  created_at: string
-  last_sign_in_at: string | null
 }
 
 function formatDate(value: string | null): string {
@@ -44,12 +34,8 @@ function formatDate(value: string | null): string {
 
 export default async function UsuariosPage() {
   const current = await requireAdmin()
-
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('admin_list_users')
-
-  const users: AdminUserRow[] = (data ?? []) as AdminUserRow[]
-  const canGrantAdmin = current.role === 'master'
+  const { users, viewerRole, error } = await listAdminUsers()
+  const canGrantAdmin = viewerRole === 'master'
   const adminCount = users.filter((u) => u.role === 'admin' || u.role === 'master').length
 
   return (
@@ -108,7 +94,7 @@ export default async function UsuariosPage() {
       <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm overflow-hidden">
         {error ? (
           <div className="p-6 text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border-b border-red-100 dark:border-red-500/20">
-            Erro ao carregar usuários: {error.message}
+            Erro ao carregar usuários: {error}
           </div>
         ) : null}
 

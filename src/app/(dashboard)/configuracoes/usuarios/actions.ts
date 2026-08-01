@@ -1,15 +1,106 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
 import { createServiceClient, usernameToEmail } from '@/lib/supabase/service'
-import { getCurrentUser, isAdmin, isMaster } from '@/lib/auth/roles'
+import { getCurrentUser, isAdmin, isMaster, requireAdmin } from '@/lib/auth/roles'
 import { createEmployeeSchema } from '@/lib/validations/auth.schema'
 import type { UserRole } from '@/types/database'
 
 export interface SetRoleResult {
   success: boolean
   error?: string
+}
+
+export interface AdminUserRow {
+  user_id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  role: UserRole
+  created_at: string
+  last_sign_in_at: string | null
+}
+
+/**
+ * Lista usuários com service role após requireAdmin().
+ * Evita o "forbidden" do RPC quando a sessão JWT expirou (comum no app desktop
+ * com cookie offline ainda válido).
+ */
+export async function listAdminUsers(): Promise<{
+  users: AdminUserRow[]
+  viewerRole: UserRole
+  error?: string
+}> {
+  const current = await requireAdmin()
+  const service = createServiceClient()
+
+  // Cookie offline pode estar desatualizado (ex.: ainda "admin" após promover a master).
+  // Confia no banco via service role.
+  const [{ data: liveRole }, { data: liveMembership }] = await Promise.all([
+    service.from('user_roles').select('role').eq('user_id', current.id).maybeSingle(),
+    service
+      .from('store_members')
+      .select('store_id')
+      .eq('user_id', current.id)
+      .maybeSingle(),
+  ])
+  const effectiveRole = (liveRole?.role as UserRole | undefined) ?? current.role
+  const effectiveStoreId = liveMembership?.store_id ?? current.storeId
+
+  const [{ data: authData, error: authError }, rolesRes, profilesRes, membersRes] =
+    await Promise.all([
+      service.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+      service.from('user_roles').select('user_id, role'),
+      service.from('profiles').select('user_id, first_name, last_name'),
+      service.from('store_members').select('user_id, store_id'),
+    ])
+
+  if (authError) {
+    return { users: [], viewerRole: effectiveRole, error: authError.message }
+  }
+
+  const roleByUser = new Map(
+    (rolesRes.data ?? []).map((r) => [r.user_id, r.role as UserRole]),
+  )
+  const profileByUser = new Map(
+    (profilesRes.data ?? []).map((p) => [
+      p.user_id,
+      { first_name: p.first_name, last_name: p.last_name },
+    ]),
+  )
+  const storeIdsByUser = new Map<string, Set<string>>()
+  for (const m of membersRes.data ?? []) {
+    const set = storeIdsByUser.get(m.user_id) ?? new Set<string>()
+    set.add(m.store_id)
+    storeIdsByUser.set(m.user_id, set)
+  }
+
+  const isMasterCaller = effectiveRole === 'master'
+  const callerStoreId = effectiveStoreId
+
+  const users: AdminUserRow[] = (authData.users ?? [])
+    .map((u) => {
+      const role = roleByUser.get(u.id) ?? 'employee'
+      const profile = profileByUser.get(u.id)
+      return {
+        user_id: u.id,
+        email: u.email ?? '',
+        first_name: profile?.first_name ?? null,
+        last_name: profile?.last_name ?? null,
+        role,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at ?? null,
+      } satisfies AdminUserRow
+    })
+    .filter((u) => {
+      if (isMasterCaller) return true
+      if (u.role === 'master') return false
+      if (!callerStoreId) return false
+      return storeIdsByUser.get(u.user_id)?.has(callerStoreId) ?? false
+    })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+  return { users, viewerRole: effectiveRole }
 }
 
 async function targetRole(userId: string): Promise<UserRole | null> {
@@ -47,28 +138,24 @@ export async function setUserRole(
     return { success: false, error: 'Não é possível alterar a conta Master.' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('admin_set_role', {
-    p_user_id: userId,
-    p_role: role,
-  })
-
-  if (error) {
-    if (error.message.includes('cannot_demote_self')) {
+  const current = await getCurrentUser()
+  if (current?.id === userId && role !== current.role) {
+    if (current.role === 'master' || current.role === 'admin') {
       return {
         success: false,
         error: 'Você não pode remover o próprio acesso de administrador.',
       }
     }
-    if (error.message.includes('only_master_can_grant_admin')) {
-      return {
-        success: false,
-        error: 'Somente a conta Master pode promover administradores.',
-      }
-    }
-    if (error.message.includes('cannot_modify_master')) {
-      return { success: false, error: 'Não é possível alterar a conta Master.' }
-    }
+  }
+
+  const service = createServiceClient()
+  const { error } = await service.from('user_roles').upsert({
+    user_id: userId,
+    role,
+    updated_at: new Date().toISOString(),
+  })
+
+  if (error) {
     return { success: false, error: error.message }
   }
 
