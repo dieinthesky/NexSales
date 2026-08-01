@@ -74,7 +74,17 @@ export function VisitaInventario({ categories }: VisitaInventarioProps) {
   const [cameraOk, setCameraOk] = useState(false)
   const [pending, startTransition] = useTransition()
   const codeRef = useRef<HTMLInputElement>(null)
+  const nameRef = useRef<HTMLInputElement>(null)
+  const priceRef = useRef<HTMLInputElement>(null)
   const stockRef = useRef<HTMLInputElement>(null)
+
+  /** Só muda ao abrir um produto (não a cada tecla do formulário). */
+  const focusKey =
+    stage.kind === 'existing'
+      ? `existing:${stage.productId}`
+      : stage.kind === 'new'
+        ? `new:${stage.code}`
+        : ''
 
   useEffect(() => {
     setCameraOk(canUseBarcodeCamera())
@@ -82,10 +92,23 @@ export function VisitaInventario({ categories }: VisitaInventarioProps) {
   }, [])
 
   useEffect(() => {
-    if (stage.kind === 'existing' || stage.kind === 'new') {
-      requestAnimationFrame(() => stockRef.current?.select())
-    }
-  }, [stage])
+    if (!focusKey) return
+    const id = requestAnimationFrame(() => {
+      if (focusKey.startsWith('existing:')) {
+        stockRef.current?.focus()
+        stockRef.current?.select()
+        return
+      }
+      // Novo: nome vazio → nome; senão → preço (estoque o usuário tabula depois)
+      if (!nameRef.current?.value.trim()) {
+        nameRef.current?.focus()
+      } else {
+        priceRef.current?.focus()
+        priceRef.current?.select()
+      }
+    })
+    return () => cancelAnimationFrame(id)
+  }, [focusKey])
 
   const resetToScan = useCallback(() => {
     setStage({ kind: 'idle' })
@@ -308,10 +331,16 @@ export function VisitaInventario({ categories }: VisitaInventarioProps) {
               min={0}
               step={1}
               className="h-12 text-lg"
-              value={stage.stock}
-              onChange={(e) =>
-                setStage({ ...stage, stock: Number(e.target.value || 0) })
-              }
+              value={Number.isFinite(stage.stock) ? String(stage.stock) : ''}
+              onChange={(e) => {
+                const raw = e.target.value
+                setStage((s) => {
+                  if (s.kind !== 'existing') return s
+                  if (raw === '') return { ...s, stock: 0 }
+                  const n = Number(raw)
+                  return Number.isFinite(n) ? { ...s, stock: n } : s
+                })
+              }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -358,9 +387,10 @@ export function VisitaInventario({ categories }: VisitaInventarioProps) {
             <Label htmlFor="visita-name">Nome</Label>
             <Input
               id="visita-name"
+              ref={nameRef}
               className="h-11"
               value={stage.name}
-              onChange={(e) => setStage({ ...stage, name: e.target.value })}
+              onChange={(e) => setStage((s) => (s.kind === 'new' ? { ...s, name: e.target.value } : s))}
               placeholder="Nome do produto"
             />
           </div>
@@ -370,11 +400,12 @@ export function VisitaInventario({ categories }: VisitaInventarioProps) {
               <Label htmlFor="visita-price">Preço de venda (R$)</Label>
               <Input
                 id="visita-price"
+                ref={priceRef}
                 className="h-11"
                 inputMode="decimal"
                 placeholder="0,00"
                 value={stage.salePrice}
-                onChange={(e) => setStage({ ...stage, salePrice: e.target.value })}
+                onChange={(e) => setStage((s) => (s.kind === 'new' ? { ...s, salePrice: e.target.value } : s))}
               />
             </div>
             <div className="space-y-1.5">
@@ -388,7 +419,7 @@ export function VisitaInventario({ categories }: VisitaInventarioProps) {
                 step={1}
                 className="h-11"
                 value={stage.stock}
-                onChange={(e) => setStage({ ...stage, stock: e.target.value })}
+                onChange={(e) => setStage((s) => (s.kind === 'new' ? { ...s, stock: e.target.value } : s))}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
