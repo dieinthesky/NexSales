@@ -14,6 +14,7 @@ import {
 import { getCustomerDetails } from '@/lib/queries/customers'
 import { formatCurrency, formatDate } from '@/lib/utils/format'
 import { DebtPaymentForm } from './debt-payment-form'
+import { CustomerActions } from '../customer-actions'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -51,6 +52,15 @@ export default async function ClienteDetalhePage({ params }: Props) {
           {customer.phone && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{customer.phone}</p>
           )}
+          <div className="mt-3">
+            <CustomerActions
+              customerId={customer.id}
+              fullName={customer.full_name}
+              phone={customer.phone}
+              notes={customer.notes}
+              currentDebt={currentDebt}
+            />
+          </div>
         </div>
         <DebtPaymentForm customerId={customer.id} customerName={customer.full_name} totalDebt={currentDebt} />
       </div>

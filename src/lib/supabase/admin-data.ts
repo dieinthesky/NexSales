@@ -1,0 +1,57 @@
+import 'server-only'
+import { createClient } from '@/lib/supabase/server'
+import { tryCreateServiceClient } from '@/lib/supabase/service'
+import { getCurrentUser, type CurrentUser } from '@/lib/auth/roles'
+import type { UserRole } from '@/types/database'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
+
+/**
+ * Prefer service role (works with offline desktop cookie). Falls back to
+ * the user-scoped client when the secret is absent.
+ */
+export async function getAdminDataClient(): Promise<SupabaseClient<Database>> {
+  return tryCreateServiceClient() ?? (await createClient())
+}
+
+/** Role + store from DB when cookie/JWT is stale (common on Electron). */
+export async function resolveAdminContext(user?: CurrentUser | null): Promise<{
+  user: CurrentUser
+  role: UserRole
+  storeId: string | null
+}> {
+  const current = user ?? (await getCurrentUser())
+  if (!current) {
+    throw new Error('Não autenticado')
+  }
+
+  const service = tryCreateServiceClient()
+  if (!service) {
+    return { user: current, role: current.role, storeId: current.storeId }
+  }
+
+  const [{ data: liveRole }, { data: liveMembership }] = await Promise.all([
+    service.from('user_roles').select('role').eq('user_id', current.id).maybeSingle(),
+    service
+      .from('store_members')
+      .select('store_id')
+      .eq('user_id', current.id)
+      .maybeSingle(),
+  ])
+
+  return {
+    user: current,
+    role: (liveRole?.role as UserRole | undefined) ?? current.role,
+    storeId: liveMembership?.store_id ?? current.storeId,
+  }
+}
+
+export function canAccessStoreRow(
+  role: UserRole,
+  callerStoreId: string | null,
+  rowStoreId: string | null | undefined,
+): boolean {
+  if (role === 'master') return true
+  if (!callerStoreId || !rowStoreId) return false
+  return callerStoreId === rowStoreId
+}

@@ -89,3 +89,118 @@ export async function recordDebtPayment(
   revalidatePath(`/clientes/${input.customerId}`)
   return { success: true, paymentId: paymentId as string }
 }
+
+export async function updateCustomer(input: {
+  customerId: string
+  fullName: string
+  phone?: string
+  notes?: string
+}): Promise<{ success?: boolean; error?: string }> {
+  const name = input.fullName.trim()
+  if (!name) return { error: 'Nome é obrigatório.' }
+
+  const { isAdmin } = await import('@/lib/auth/roles')
+  if (!(await isAdmin())) {
+    return { error: 'Apenas administradores podem editar clientes.' }
+  }
+
+  const {
+    canAccessStoreRow,
+    getAdminDataClient,
+    resolveAdminContext,
+  } = await import('@/lib/supabase/admin-data')
+
+  const { role, storeId } = await resolveAdminContext()
+  const supabase = await getAdminDataClient()
+  const { data: existing } = await supabase
+    .from('customers')
+    .select('id, store_id')
+    .eq('id', input.customerId)
+    .maybeSingle()
+
+  if (!existing) return { error: 'Cliente não encontrado.' }
+  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+    return { error: 'Sem permissão para editar este cliente.' }
+  }
+
+  const { error } = await supabase
+    .from('customers')
+    .update({
+      full_name: name,
+      phone: input.phone?.trim() || null,
+      notes: input.notes?.trim() || null,
+    })
+    .eq('id', input.customerId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/clientes')
+  revalidatePath(`/clientes/${input.customerId}`)
+  return { success: true }
+}
+
+export async function deleteCustomer(
+  customerId: string,
+): Promise<{ success?: boolean; error?: string }> {
+  const { isAdmin } = await import('@/lib/auth/roles')
+  if (!(await isAdmin())) {
+    return { error: 'Apenas administradores podem excluir clientes.' }
+  }
+
+  const {
+    canAccessStoreRow,
+    getAdminDataClient,
+    resolveAdminContext,
+  } = await import('@/lib/supabase/admin-data')
+
+  const { role, storeId } = await resolveAdminContext()
+  const supabase = await getAdminDataClient()
+  const { data: existing } = await supabase
+    .from('customers')
+    .select('id, store_id')
+    .eq('id', customerId)
+    .maybeSingle()
+
+  if (!existing) return { error: 'Cliente não encontrado.' }
+  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+    return { error: 'Sem permissão para excluir este cliente.' }
+  }
+
+  const { data: balance } = await supabase
+    .from('customer_balances')
+    .select('current_debt')
+    .eq('id', customerId)
+    .maybeSingle()
+
+  if ((balance?.current_debt ?? 0) > 0) {
+    return { error: 'Cliente ainda tem débito em aberto. Quite o fiado antes de excluir.' }
+  }
+
+  const { count: salesCount } = await supabase
+    .from('sales')
+    .select('*', { count: 'exact', head: true })
+    .eq('customer_id', customerId)
+
+  if ((salesCount ?? 0) > 0) {
+    return {
+      error: 'Cliente tem vendas no histórico e não pode ser excluído.',
+    }
+  }
+
+  const { count: paymentsCount } = await supabase
+    .from('debt_payments')
+    .select('*', { count: 'exact', head: true })
+    .eq('customer_id', customerId)
+
+  if ((paymentsCount ?? 0) > 0) {
+    return {
+      error: 'Cliente tem pagamentos registrados e não pode ser excluído.',
+    }
+  }
+
+  const { error } = await supabase.from('customers').delete().eq('id', customerId)
+  if (error) return { error: error.message }
+
+  revalidatePath('/clientes')
+  return { success: true }
+}

@@ -10,6 +10,11 @@ import {
   type BarcodeSource,
 } from '@/lib/barcode/lookup'
 import { getCurrentUser, isAdmin } from '@/lib/auth/roles'
+import {
+  canAccessStoreRow,
+  getAdminDataClient,
+  resolveAdminContext,
+} from '@/lib/supabase/admin-data'
 
 export type BarcodeLookupResult =
   | {
@@ -139,7 +144,7 @@ export async function lookupProductByBarcode(
 }
 
 async function resolveProductImageUrl(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  supabase: Awaited<ReturnType<typeof getAdminDataClient>>,
   productId: string,
   formData: FormData,
   currentUrl: string | null,
@@ -300,12 +305,13 @@ export async function createProduct(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const user = await getCurrentUser()
-  if (!user?.storeId) {
+  const ctx = await resolveAdminContext()
+  const storeId = ctx.storeId
+  if (!storeId) {
     return { error: 'Sua conta não está vinculada a uma loja.' }
   }
 
-  const supabase = await createClient()
+  const supabase = await getAdminDataClient()
   const externalUrl = String(imageUrlField ?? '').trim() || null
 
   const { data: created, error } = await supabase
@@ -315,7 +321,7 @@ export async function createProduct(formData: FormData) {
       category_id: parsed.data.category_id || null,
       description: parsed.data.description || null,
       image_url: externalUrl,
-      store_id: user.storeId,
+      store_id: storeId,
     })
     .select('id')
     .single()
@@ -359,12 +365,18 @@ export async function updateProduct(id: string, formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const supabase = await createClient()
-  const { data: current } = await supabase
+  const { role, storeId } = await resolveAdminContext()
+  const supabase = await getAdminDataClient()
+  const { data: existing } = await supabase
     .from('products')
-    .select('image_url')
+    .select('id, store_id, image_url')
     .eq('id', id)
     .maybeSingle()
+
+  if (!existing) return { error: 'Produto não encontrado.' }
+  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+    return { error: 'Sem permissão para editar este produto.' }
+  }
 
   const fd = new FormData()
   if (imageFile instanceof File) fd.set('image', imageFile)
@@ -375,7 +387,7 @@ export async function updateProduct(id: string, formData: FormData) {
     supabase,
     id,
     fd,
-    current?.image_url ?? null,
+    existing.image_url ?? null,
   )
   if (resolved.error) return { error: resolved.error }
 
@@ -395,6 +407,7 @@ export async function updateProduct(id: string, formData: FormData) {
   }
 
   revalidatePath('/produtos')
+  revalidatePath(`/produtos/${id}`)
   revalidatePath('/vendas/nova')
   redirect('/produtos')
 }
@@ -404,16 +417,53 @@ export async function deleteProduct(id: string) {
     return { error: 'Apenas administradores podem excluir produtos.' }
   }
 
-  const supabase = await createClient()
-  const { error } = await supabase
+  const { role, storeId } = await resolveAdminContext()
+  const supabase = await getAdminDataClient()
+  const { data: existing } = await supabase
     .from('products')
-    .update({ is_active: false })
+    .select('id, store_id')
     .eq('id', id)
+    .maybeSingle()
 
-  if (error) return { error: error.message }
+  if (!existing) return { error: 'Produto não encontrado.' }
+  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+    return { error: 'Sem permissão para excluir este produto.' }
+  }
+
+  const { count } = await supabase
+    .from('sale_items')
+    .select('*', { count: 'exact', head: true })
+    .eq('product_id', id)
+
+  if ((count ?? 0) > 0) {
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: false })
+      .eq('id', id)
+    if (error) return { error: error.message }
+    revalidatePath('/produtos')
+    return {
+      success: true as const,
+      deactivated: true as const,
+      message: 'Produto já foi vendido — foi desativado (histórico preservado).',
+    }
+  }
+
+  const { error } = await supabase.from('products').delete().eq('id', id)
+  if (error) {
+    // FK residual — soft delete
+    const soft = await supabase.from('products').update({ is_active: false }).eq('id', id)
+    if (soft.error) return { error: soft.error.message }
+    revalidatePath('/produtos')
+    return {
+      success: true as const,
+      deactivated: true as const,
+      message: 'Não foi possível apagar — produto desativado.',
+    }
+  }
 
   revalidatePath('/produtos')
-  return { success: true }
+  return { success: true as const, deleted: true as const }
 }
 
 export async function reactivateProduct(id: string) {
@@ -421,7 +471,19 @@ export async function reactivateProduct(id: string) {
     return { error: 'Apenas administradores podem reativar produtos.' }
   }
 
-  const supabase = await createClient()
+  const { role, storeId } = await resolveAdminContext()
+  const supabase = await getAdminDataClient()
+  const { data: existing } = await supabase
+    .from('products')
+    .select('id, store_id')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!existing) return { error: 'Produto não encontrado.' }
+  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+    return { error: 'Sem permissão para reativar este produto.' }
+  }
+
   const { error } = await supabase
     .from('products')
     .update({ is_active: true })

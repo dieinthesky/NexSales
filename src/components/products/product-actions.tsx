@@ -37,8 +37,12 @@ export function ProductActions({ productId, productName }: ProductActionsProps) 
     const result = await deleteProduct(productId)
     if (result?.error) {
       toast.error(result.error)
+    } else if (result && 'deleted' in result && result.deleted) {
+      toast.success('Produto excluído')
+    } else if (result && 'message' in result && result.message) {
+      toast.success(result.message)
     } else {
-      toast.success('Produto desativado com sucesso')
+      toast.success('Produto desativado')
     }
     setIsDeleting(false)
     setShowDelete(false)
@@ -64,7 +68,7 @@ export function ProductActions({ productId, productName }: ProductActionsProps) 
             onClick={() => setShowDelete(true)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Desativar
+            Excluir
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -72,10 +76,10 @@ export function ProductActions({ productId, productName }: ProductActionsProps) 
       <AlertDialog open={showDelete} onOpenChange={setShowDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Desativar produto?</AlertDialogTitle>
+            <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
             <AlertDialogDescription>
-              O produto <strong>{productName}</strong> será desativado e não aparecerá mais nas
-              vendas. O código fica reservado — para reativar, abra o produto e use Reativar.
+              O produto <strong>{productName}</strong> será removido. Se já tiver sido
+              vendido, ele só será desativado para preservar o histórico.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -85,7 +89,7 @@ export function ProductActions({ productId, productName }: ProductActionsProps) 
               disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700"
             >
-              Desativar
+              Excluir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
