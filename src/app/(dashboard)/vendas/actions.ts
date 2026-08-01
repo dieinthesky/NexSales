@@ -184,26 +184,60 @@ export async function cancelSale(saleId: string): Promise<CancelSaleResult> {
   const { error } = await supabase.rpc('cancel_sale', { p_sale_id: saleId })
 
   if (error) {
-    if (error.message.includes('sale_not_found')) {
-      return { success: false, error: 'Venda não encontrada.' }
-    }
-    if (error.message.includes('forbidden')) {
-      return {
-        success: false,
-        error: 'Apenas administradores podem excluir vendas.',
+    // JWT offline/expired: cancel via service role after app-level isAdmin check
+    const { tryCreateServiceClient } = await import('@/lib/supabase/service')
+    const service = tryCreateServiceClient()
+    if (!service) {
+      if (error.message.includes('forbidden')) {
+        return {
+          success: false,
+          error: 'Sessão expirada. Entre de novo ou configure a service role.',
+        }
       }
+      if (error.message.includes('sale_not_found')) {
+        return { success: false, error: 'Venda não encontrada.' }
+      }
+      return { success: false, error: error.message }
     }
-    return { success: false, error: error.message }
+
+    const { data: items, error: itemsErr } = await service
+      .from('sale_items')
+      .select('product_id, quantity, products(track_stock)')
+      .eq('sale_id', saleId)
+
+    if (itemsErr) return { success: false, error: itemsErr.message }
+
+    for (const item of items ?? []) {
+      const track =
+        (item.products as { track_stock?: boolean } | null)?.track_stock ?? true
+      if (!track) continue
+      const { data: prod } = await service
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', item.product_id)
+        .maybeSingle()
+      if (!prod) continue
+      await service
+        .from('products')
+        .update({ stock_quantity: prod.stock_quantity + item.quantity })
+        .eq('id', item.product_id)
+    }
+
+    const { error: delErr } = await service.from('sales').delete().eq('id', saleId)
+    if (delErr) {
+      if (delErr.message.toLowerCase().includes('0 rows')) {
+        return { success: false, error: 'Venda não encontrada.' }
+      }
+      return { success: false, error: delErr.message }
+    }
   }
 
-  // In Electron, delete the sale from SQLite immediately and restore product stock.
   if (isElectron()) {
     await deleteLocalSale(saleId).catch((err) => {
       console.warn('[electron] deleteLocalSale failed, will sync on next cycle:', err)
     })
   }
 
-  // Invalidate every surface that derives data from sales/stock/fiado.
   revalidatePath('/vendas')
   revalidatePath(`/vendas/${saleId}`)
   revalidatePath('/dashboard')

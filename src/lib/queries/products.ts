@@ -112,20 +112,27 @@ export async function getLowStock(): Promise<ProductWithCategory[]> {
     }
   }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('products')
-    .select('*, categories(id, name)')
-    .eq('is_active', true)
-    .eq('track_stock', true)
-    .order('stock_quantity')
-    .limit(200)
+  const { getAdminDataClient } = await import('@/lib/supabase/admin-data')
+  const supabase = await getAdminDataClient()
+
+  const [{ data, error }, { data: templates }] = await Promise.all([
+    supabase
+      .from('products')
+      .select('*, categories(id, name, store_id, created_at)')
+      .eq('is_active', true)
+      .eq('track_stock', true)
+      .order('stock_quantity')
+      .limit(200),
+    supabase.from('stores').select('id').eq('is_template', true),
+  ])
 
   if (error) throw new Error(error.message)
 
-  return ((data ?? []) as ProductWithCategory[]).filter(
-    (p) => p.stock_quantity <= p.min_stock,
-  )
+  const templateIds = new Set((templates ?? []).map((t) => t.id))
+
+  return ((data ?? []) as ProductWithCategory[])
+    .filter((p) => !templateIds.has(p.store_id))
+    .filter((p) => p.stock_quantity <= p.min_stock)
 }
 
 export async function getCategories(): Promise<Category[]> {

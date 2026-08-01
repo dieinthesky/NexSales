@@ -1,6 +1,5 @@
 import { Store } from 'lucide-react'
 import { requireMaster } from '@/lib/auth/roles'
-import { createClient } from '@/lib/supabase/server'
 import { Card } from '@/components/ui/card'
 import {
   Table,
@@ -12,19 +11,13 @@ import {
 } from '@/components/ui/table'
 import { ProvisionStoreForm } from './provision-store-form'
 import { ResetStoreButton } from './reset-store-button'
+import { listStoresForMaster } from './actions'
 
 export const metadata = { title: 'Lojas' }
 
 export default async function LojasPage() {
   await requireMaster()
-  const supabase = await createClient()
-
-  const { data: stores } = await supabase
-    .from('stores')
-    .select('id, name, slug, is_template, created_at')
-    .order('created_at', { ascending: false })
-
-  const rows = stores ?? []
+  const { stores: rows, error } = await listStoresForMaster()
 
   return (
     <div className="space-y-6">
@@ -36,9 +29,14 @@ export default async function LojasPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Conta Master: provisione lojas novas (dono + catálogo modelo) e zere vendas/fiado sem apagar produtos.
+          Conta Master: provisione lojas e use <strong>Resetar loja</strong> para zerar vendas,
+          histórico, fiado e clientes (catálogo permanece).
         </p>
       </div>
+
+      {error ? (
+        <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+      ) : null}
 
       <ProvisionStoreForm />
 
@@ -76,11 +74,11 @@ export default async function LojasPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {s.is_template ? (
-                      <span className="text-xs text-slate-400">—</span>
-                    ) : (
-                      <ResetStoreButton storeId={s.id} storeName={s.name} />
-                    )}
+                    <ResetStoreButton
+                      storeId={s.id}
+                      storeName={s.name}
+                      isTemplate={s.is_template}
+                    />
                   </TableCell>
                 </TableRow>
               ))

@@ -29,10 +29,21 @@ async function getSalesPagedFromSupabase(
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? DEFAULT_PAGE_SIZE))
 
+  // Master vê todas as lojas — oculta vendas do catálogo modelo (ruído de testes).
+  const { data: templates } = await supabase
+    .from('stores')
+    .select('id')
+    .eq('is_template', true)
+  const templateIds = (templates ?? []).map((t) => t.id)
+
   let query = supabase
     .from('sales')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
+
+  if (templateIds.length > 0) {
+    query = query.not('store_id', 'in', `(${templateIds.join(',')})`)
+  }
 
   if (params.payment) {
     query = query.eq('payment_method', params.payment)

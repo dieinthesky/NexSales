@@ -11,6 +11,8 @@ interface CancelSaleButtonProps {
   saleId: string
   /** Short human-readable id (e.g. last 8 chars) shown in the modal. */
   shortId: string
+  /** Ícone só — para a lista do histórico. */
+  compact?: boolean
 }
 
 /**
@@ -19,7 +21,7 @@ interface CancelSaleButtonProps {
  * Opens an inline confirmation modal that explicitly warns the user about
  * stock restoration before allowing the destructive action to run.
  */
-export function CancelSaleButton({ saleId, shortId }: CancelSaleButtonProps) {
+export function CancelSaleButton({ saleId, shortId, compact = false }: CancelSaleButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const router = useRouter()
@@ -30,7 +32,9 @@ export function CancelSaleButton({ saleId, shortId }: CancelSaleButtonProps) {
       if (result.success) {
         toast.success('Venda excluída. Estoque devolvido aos produtos.')
         setIsOpen(false)
-        router.push('/vendas')
+        if (!compact) {
+          router.push('/vendas')
+        }
         router.refresh()
       } else {
         toast.error(result.error ?? 'Não foi possível excluir a venda.')
@@ -42,12 +46,18 @@ export function CancelSaleButton({ saleId, shortId }: CancelSaleButtonProps) {
     <>
       <Button
         type="button"
-        variant="outline"
-        className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 hover:border-red-300"
+        variant={compact ? 'ghost' : 'outline'}
+        size={compact ? 'sm' : 'default'}
+        className={
+          compact
+            ? 'text-red-600 dark:text-red-400 hover:text-red-800 hover:bg-red-50 dark:hover:bg-red-500/10'
+            : 'border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 hover:border-red-300'
+        }
         onClick={() => setIsOpen(true)}
+        title="Excluir venda"
       >
-        <Trash2 className="mr-1.5 h-4 w-4" />
-        Excluir venda
+        <Trash2 className={compact ? 'h-4 w-4' : 'mr-1.5 h-4 w-4'} />
+        {compact ? null : 'Excluir venda'}
       </Button>
 
       {isOpen && (

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
 import { SalesFilters } from '@/components/sales/sales-filters'
+import { CancelSaleButton } from '@/components/sales/cancel-sale-button'
 import { getSalesPaged } from '@/lib/queries/sales'
 import { getCurrentUser } from '@/lib/auth/roles'
 import { tryQuery } from '@/lib/supabase/try-query'
@@ -249,6 +250,13 @@ export default async function VendasPage({
                             <Printer className="h-4 w-4" />
                           </Link>
                         </Button>
+                        {!isEmployee ? (
+                          <CancelSaleButton
+                            saleId={sale.id}
+                            shortId={sale.id.slice(0, 8)}
+                            compact
+                          />
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>
