@@ -464,49 +464,42 @@ export function PDV({ avulsoProduct }: PDVProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state intentionally
   }, [checkoutOpen, canSubmit, cartItems.length, avulsoProduct, missingPay, informedPays])
 
-  const isBusy = cartItems.length > 0
   const lastUnit = lastItem
     ? lastItem.customPrice ?? lastItem.product.sale_price
     : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#1a0a0c] text-white font-[family-name:var(--font-poppins),sans-serif]">
-      {/* Top bar — SYSON style */}
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-black/40 bg-gradient-to-r from-[#5c0d14] via-[#8b1520] to-[#5c0d14] px-3 py-2 sm:px-4">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#0f172a] text-white font-[family-name:var(--font-poppins),sans-serif]">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[#111827] px-3 py-2.5 sm:px-5">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-1.5 rounded px-2 py-1.5 text-xs font-semibold text-white/70 hover:bg-black/20 hover:text-white"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-white/55 hover:bg-white/5 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Sair
           </Link>
           <div className="min-w-0">
-            <p className="truncate text-base font-black tracking-wide text-white drop-shadow sm:text-lg">
-              CaixaDoBairro
+            <p className="truncate text-sm font-bold text-white sm:text-base">CaixaDoBairro</p>
+            <p className="truncate text-[11px] text-white/40">
+              {cartItems.length === 0
+                ? '1) Digite ou bipe o produto'
+                : '2) Confira os itens · 3) Encerrar venda'}
             </p>
-            <p className="truncate text-[11px] font-medium text-amber-100/70">PDV do bairro</p>
           </div>
         </div>
-
         <div className="flex items-center gap-2 sm:gap-3">
-          <span
-            className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-black uppercase tracking-wider shadow ${
-              isBusy
-                ? 'bg-[#1e3a8a] text-white ring-1 ring-blue-300/40'
-                : 'bg-emerald-600 text-white ring-1 ring-emerald-200/40'
-            }`}
-          >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                isBusy ? 'animate-pulse bg-amber-300' : 'bg-emerald-200'
-              }`}
-            />
-            {isBusy ? 'Caixa ocupado' : 'Caixa livre'}
-          </span>
-          <span className="rounded bg-black/35 px-3 py-1.5 font-mono text-sm font-bold tabular-nums text-amber-200 sm:text-base">
-            {clock || '--:--:--'}
-          </span>
+          {avulsoProduct && (
+            <button
+              type="button"
+              onClick={handleAddAvulso}
+              className="hidden items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5 sm:inline-flex"
+            >
+              Avulso
+              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px] text-white/45">F4</kbd>
+            </button>
+          )}
+          <span className="font-mono text-sm tabular-nums text-white/50">{clock || '--:--:--'}</span>
         </div>
       </header>
 
@@ -550,76 +543,65 @@ export function PDV({ avulsoProduct }: PDVProps) {
       )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        {/* Left: current item + barcode */}
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-gradient-to-b from-[#6b1018] via-[#4a0c12] to-[#2a080c]">
-          {/* Current item banner */}
-          <div className="shrink-0 border-b border-black/30 bg-black/25 px-3 py-3 sm:px-5 sm:py-4">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* Step 1: search first — always obvious */}
+          <div className="shrink-0 border-b border-white/10 bg-[#111827] px-3 py-3 sm:px-5">
+            <ProductSearch onAdd={handleAddItem} variant="cashier" />
+            <p className="mt-2 text-[12px] text-white/40">
+              Digite o nome ou bipe o código → Enter → confirme a quantidade → Enter
+            </p>
+          </div>
+
+          {/* Last item highlight */}
+          <div className="shrink-0 border-b border-white/10 px-3 py-4 sm:px-5">
             {lastItem ? (
-              <div className="flex gap-3 sm:gap-5">
+              <div className="flex gap-4">
                 <PdvProductArt
                   name={lastItem.product.name}
-                  className="h-28 w-28 shrink-0 sm:h-40 sm:w-40 lg:h-44 lg:w-44"
+                  className="h-24 w-24 shrink-0 sm:h-32 sm:w-32"
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-200/70">
-                    Item atual
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400/80">
+                    Último item adicionado
                   </p>
-                  <p className="mt-1 line-clamp-2 text-2xl font-black leading-tight text-white drop-shadow sm:text-4xl lg:text-5xl">
-                    <span className="text-amber-300">{lastItem.quantity.toLocaleString('pt-BR')}</span>
-                    <span className="mx-2 text-white/50">×</span>
-                    {lastItem.product.name}
+                  <p className="mt-1 line-clamp-2 text-2xl font-bold leading-tight text-white sm:text-3xl">
+                    {lastItem.quantity}× {lastItem.product.name}
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-white/60">
-                    Cód. {lastItem.product.code}
+                  <p className="mt-2 text-sm text-white/45">Cód. {lastItem.product.code}</p>
+                  <p className="mt-3 text-2xl font-bold tabular-nums text-emerald-300">
+                    {formatCurrency(lastLineTotal)}
+                    <span className="ml-2 text-sm font-medium text-white/35">
+                      ({lastItem.quantity} × {formatCurrency(lastUnit)})
+                    </span>
                   </p>
-                  <div className="mt-3 grid grid-cols-2 gap-2 sm:max-w-md">
-                    <div className="rounded-md border border-white/15 bg-white px-3 py-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                        Valor unitário
-                      </p>
-                      <p className="text-lg font-black tabular-nums text-slate-900 sm:text-xl">
-                        {formatCurrency(lastUnit)}
-                      </p>
-                    </div>
-                    <div className="rounded-md border border-amber-300/50 bg-amber-300 px-3 py-2">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-950/70">
-                        Subtotal
-                      </p>
-                      <p className="text-lg font-black tabular-nums text-slate-900 sm:text-xl">
-                        {formatCurrency(lastLineTotal)}
-                      </p>
-                    </div>
-                  </div>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-4 py-4 sm:py-8">
-                <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-dashed border-white/25 bg-black/20 sm:h-40 sm:w-40">
-                  <span className="text-center text-xs font-bold uppercase tracking-wider text-white/35">
-                    Aguardando
+              <div className="flex items-center gap-4 rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-6">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/25 sm:h-24 sm:w-24">
+                  <span className="text-center text-[11px] font-semibold uppercase tracking-wide">
+                    Sem
                     <br />
-                    bipe
+                    itens
                   </span>
                 </div>
                 <div>
-                  <p className="text-2xl font-black text-white/80 sm:text-4xl">Aguardando itens</p>
-                  <p className="mt-2 text-sm text-white/45">
-                    Bipe o código de barras ou digite o nome do produto
+                  <p className="text-xl font-bold text-white/80">Comece pelo campo acima</p>
+                  <p className="mt-1 text-sm text-white/40">
+                    Os produtos entram na lista à direita. Depois clique em Encerrar.
                   </p>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="shrink-0 space-y-2 border-b border-black/30 bg-black/20 px-3 py-3 sm:px-5">
-            <ProductSearch onAdd={handleAddItem} variant="cashier" />
-          </div>
-
-          {/* Mobile: cupom below search */}
-          <div className="min-h-0 flex-1 overflow-hidden border-t border-black/20 lg:hidden">
-            <div className="flex h-full min-h-[220px] flex-col">
-              <div className="shrink-0 bg-[#0b1f4a] px-3 py-2 text-center text-xs font-black uppercase tracking-[0.25em] text-white">
-                Cupom
+          {/* Mobile items list */}
+          <div className="min-h-0 flex-1 overflow-hidden lg:hidden">
+            <div className="flex h-full min-h-[200px] flex-col">
+              <div className="shrink-0 border-b border-white/10 bg-[#111827] px-3 py-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-white/50">
+                  Itens da venda · {itemCount}
+                </p>
               </div>
               <div className="min-h-0 flex-1">
                 <Cart
@@ -635,12 +617,11 @@ export function PDV({ avulsoProduct }: PDVProps) {
           </div>
         </section>
 
-        {/* Right: cupom (desktop) */}
-        <aside className="hidden min-h-0 w-full shrink-0 flex-col border-l border-black/40 bg-[#0b1f4a] lg:flex lg:w-[420px] xl:w-[480px]">
-          <div className="shrink-0 bg-[#071536] px-4 py-2.5 text-center">
-            <p className="text-sm font-black uppercase tracking-[0.3em] text-white">Cupom</p>
-            <p className="text-[11px] font-medium text-blue-200/70">
-              {itemCount} {itemCount === 1 ? 'item' : 'itens'} · Consumidor final
+        <aside className="hidden min-h-0 w-full shrink-0 flex-col border-l border-white/10 bg-[#0b1220] lg:flex lg:w-[400px] xl:w-[440px]">
+          <div className="shrink-0 border-b border-white/10 px-4 py-3">
+            <p className="text-sm font-bold text-white">Itens da venda</p>
+            <p className="text-xs text-white/40">
+              {itemCount} {itemCount === 1 ? 'item' : 'itens'}
             </p>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -656,96 +637,41 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </aside>
       </div>
 
-      {/* Bottom: status + total + shortcuts */}
-      <footer className="shrink-0 border-t border-black/50 bg-[#12060a]">
-        <div className="flex flex-col gap-0 sm:flex-row">
-          <div
-            className={`flex items-center justify-center px-4 py-3 sm:w-56 sm:py-0 ${
-              isBusy ? 'bg-[#1e3a8a]' : 'bg-emerald-700'
-            }`}
-          >
-            <p className="text-center text-sm font-black uppercase tracking-[0.18em] text-white sm:text-base">
-              {isBusy ? 'Caixa ocupado' : 'Caixa livre'}
+      <footer className="shrink-0 border-t border-white/10 bg-[#111827]">
+        <div className="flex items-center justify-between gap-4 px-3 py-3 sm:px-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Total</p>
+            <p className="text-4xl font-black tabular-nums text-white sm:text-5xl">
+              {formatCurrency(total)}
             </p>
           </div>
-          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 bg-gradient-to-r from-[#9a1522] to-[#6b1018] px-4 py-3 sm:px-6">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-100/70">
-                Total da venda
-              </p>
-              <p className="text-4xl font-black leading-none tracking-tight tabular-nums text-amber-300 drop-shadow sm:text-5xl lg:text-6xl">
-                {formatCurrency(total)}
-              </p>
-            </div>
-            <Button
-              className="h-14 shrink-0 bg-amber-400 px-5 text-base font-black text-slate-900 hover:bg-amber-300 disabled:opacity-40 sm:h-16 sm:px-8 sm:text-lg"
-              onClick={openCheckout}
-              disabled={cartItems.length === 0 || isSubmitting}
-            >
-              Encerrar
-              <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-xs font-bold">
-                F7
-              </kbd>
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-stretch gap-1 border-t border-black/40 bg-[#0b1f4a] px-2 py-1.5 sm:gap-2 sm:px-3">
-          {avulsoProduct && (
-            <button
-              type="button"
-              onClick={handleAddAvulso}
-              className="inline-flex items-center gap-2 rounded bg-[#1e3a8a] px-3 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-[#2563eb]"
-            >
-              <kbd className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px]">F4</kbd>
-              Item avulso
-            </button>
-          )}
-          <button
-            type="button"
+          <Button
+            className="h-14 shrink-0 bg-emerald-500 px-6 text-base font-bold text-[#04120c] hover:bg-emerald-400 disabled:opacity-40 sm:h-16 sm:px-10 sm:text-lg"
             onClick={openCheckout}
             disabled={cartItems.length === 0 || isSubmitting}
-            className="inline-flex items-center gap-2 rounded bg-[#1e3a8a] px-3 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-[#2563eb] disabled:opacity-40"
           >
-            <kbd className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px]">F7</kbd>
             Encerrar venda
-          </button>
-          <button
-            type="button"
-            onClick={openCheckout}
-            disabled={cartItems.length === 0 || isSubmitting}
-            className="inline-flex items-center gap-2 rounded bg-[#1e3a8a] px-3 py-2 text-xs font-bold uppercase tracking-wide text-white hover:bg-[#2563eb] disabled:opacity-40"
-          >
-            <kbd className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px]">F10</kbd>
-            Finalizar
-          </button>
-          {checkoutOpen && (
-            <span className="inline-flex items-center gap-2 rounded bg-slate-700 px-3 py-2 text-xs font-bold uppercase tracking-wide text-white/80">
-              <kbd className="rounded bg-black/30 px-1.5 py-0.5 font-mono text-[10px]">Esc</kbd>
-              Cancelar pagamento
-            </span>
-          )}
-          <span className="ml-auto hidden items-center px-2 text-[11px] font-medium text-blue-200/50 sm:inline-flex">
-            Código → Enter → qtd → Enter · F7 confirma pagamento
-          </span>
+            <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-xs font-semibold">
+              F7
+            </kbd>
+          </Button>
         </div>
       </footer>
 
-      {/* Venda concluída — permanece no caixa */}
       {completedSale && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md rounded-xl border-2 border-amber-400/40 bg-[#2a080c] p-6 shadow-2xl">
-            <div className="flex items-center gap-2 text-amber-300">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-400/30 bg-[#0d1c31] p-6 shadow-2xl">
+            <div className="flex items-center gap-2 text-emerald-300">
               <CheckCircle2 className="h-6 w-6" />
-              <p className="text-lg font-black text-white">Venda concluída</p>
+              <p className="text-lg font-bold text-white">Venda concluída</p>
             </div>
-            <p className="mt-3 text-4xl font-black tabular-nums text-amber-300">
+            <p className="mt-3 text-4xl font-black tabular-nums text-white">
               {formatCurrency(completedSale.total)}
             </p>
             <p className="mt-1 text-sm text-white/50">{completedSale.paymentLabel}</p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <Button
-                className="h-12 flex-1 bg-amber-400 font-black text-slate-900 hover:bg-amber-300"
+                className="h-12 flex-1 bg-emerald-500 font-bold text-[#04120c] hover:bg-emerald-400"
                 onClick={() => setCompletedSale(null)}
               >
                 Nova venda

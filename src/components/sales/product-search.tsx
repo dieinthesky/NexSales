@@ -205,21 +205,21 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
       {/* ── Search input ── */}
       {isCashier ? (
         <div className="space-y-1.5">
-          <label className="block text-[11px] font-bold uppercase tracking-[0.16em] text-amber-200/90">
-            Código de barras / produto
+          <label className="block text-xs font-semibold text-white/55">
+            Buscar produto
           </label>
           <div className="relative">
             <ScanBarcode
               aria-hidden="true"
-              className="absolute left-3 top-1/2 h-6 w-6 -translate-y-1/2 text-red-300"
+              className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-400/80"
             />
             <Input
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Bipe o código ou digite o nome..."
-              className="h-16 rounded-lg border-2 border-white/25 bg-white pl-12 pr-4 text-xl font-bold text-slate-900 placeholder:text-slate-400 focus-visible:border-amber-400 focus-visible:ring-amber-400/30"
+              placeholder="Digite o nome ou bipe o código de barras..."
+              className="h-14 rounded-xl border border-white/15 bg-[#0b1220] pl-12 pr-4 text-base font-medium text-white placeholder:text-white/35 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
               autoComplete="off"
               spellCheck={false}
               inputMode="text"
@@ -265,7 +265,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
         <div
           className={
             isCashier
-              ? 'rounded-lg border-2 border-amber-300/70 bg-black/35 p-4 space-y-3'
+              ? 'rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 space-y-3'
               : 'rounded-lg border-2 border-primary/60 bg-primary/5 dark:bg-primary/10 p-3 space-y-3 shadow-sm'
           }
         >
@@ -313,7 +313,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
             <div
               className={`inline-flex items-center overflow-hidden rounded-md border ${
                 isCashier
-                  ? 'border-white/25 bg-white'
+                  ? 'border-white/15 bg-[#0b1220]'
                   : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800'
               }`}
             >
@@ -323,7 +323,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                 disabled={staged.quantity <= 1}
                 className={`h-9 w-9 inline-flex items-center justify-center disabled:opacity-40 transition-colors ${
                   isCashier
-                    ? 'text-slate-700 hover:bg-slate-100'
+                    ? 'text-white/70 hover:bg-white/10'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8'
                 }`}
                 aria-label="Diminuir"
@@ -341,7 +341,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                 onKeyDown={handleStagedQtyKeyDown}
                 className={`w-14 h-9 text-center text-base font-bold tabular-nums border-x focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                   isCashier
-                    ? 'text-slate-900 bg-white border-slate-200 focus:bg-amber-50'
+                    ? 'text-white bg-[#0b1220] border-white/15 focus:bg-emerald-500/10'
                     : 'text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 focus:bg-primary/10 dark:focus:bg-primary/20'
                 }`}
                 aria-label="Quantidade"
@@ -355,7 +355,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                 }
                 className={`h-9 w-9 inline-flex items-center justify-center disabled:opacity-40 transition-colors ${
                   isCashier
-                    ? 'text-slate-700 hover:bg-slate-100'
+                    ? 'text-white/70 hover:bg-white/10'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8'
                 }`}
                 aria-label="Aumentar"
@@ -366,26 +366,18 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
 
             <Button
               size="sm"
-              className={
-                isCashier
-                  ? 'h-9 flex-1 bg-amber-400 font-bold text-slate-900 hover:bg-amber-300 sm:flex-initial'
-                  : 'h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-sm flex-1 sm:flex-initial'
-              }
+              className="h-9 flex-1 bg-emerald-500 font-semibold text-[#04120c] hover:bg-emerald-400 sm:flex-initial"
               onClick={confirmStaged}
             >
               <CheckCircle2 className="h-4 w-4 mr-1.5" />
               Adicionar{' '}
-              <span
-                className={`ml-1 font-normal text-xs hidden sm:inline ${
-                  isCashier ? 'text-slate-800' : 'text-emerald-100'
-                }`}
-              >
+              <span className="ml-1 hidden text-xs font-normal text-[#04120c]/80 sm:inline">
                 ↵ Enter
               </span>
             </Button>
           </div>
 
-          <p className={`text-[11px] font-medium ${isCashier ? 'text-amber-200/90' : 'text-primary'}`}>
+          <p className={`text-[11px] font-medium ${isCashier ? 'text-emerald-300/80' : 'text-primary'}`}>
             Digite a quantidade e pressione <strong>Enter</strong> · <strong>Esc</strong> para cancelar
           </p>
         </div>
@@ -418,7 +410,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
           role="listbox"
           className={
             isCashier
-              ? 'max-h-56 overflow-y-auto rounded-lg border-2 border-amber-300/50 bg-white divide-y divide-slate-100 shadow-2xl'
+              ? 'max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0b1220] divide-y divide-white/5 shadow-xl'
               : 'border border-slate-200 dark:border-white/8 rounded-lg divide-y divide-slate-100 dark:divide-white/5 bg-white dark:bg-slate-800 shadow-sm max-h-48 sm:max-h-64 overflow-y-auto'
           }
         >
@@ -433,8 +425,8 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
               className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors focus:outline-none ${
                 isCashier
                   ? index === highlightedIndex
-                    ? 'bg-amber-100 border-l-4 border-l-red-600'
-                    : 'hover:bg-slate-50'
+                    ? 'bg-emerald-500/20 border-l-2 border-l-emerald-400'
+                    : 'hover:bg-white/5'
                   : index === highlightedIndex
                     ? 'bg-primary/5 dark:bg-primary/15 border-l-2 border-l-blue-500'
                     : 'hover:bg-slate-50 dark:hover:bg-white/5'
@@ -448,8 +440,8 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                     className={`text-sm font-medium truncate ${
                       isCashier
                         ? index === highlightedIndex
-                          ? 'text-red-800 font-bold'
-                          : 'text-slate-900'
+                          ? 'text-emerald-200'
+                          : 'text-white'
                         : index === highlightedIndex
                           ? 'text-primary/80 dark:text-primary'
                           : 'text-slate-900 dark:text-slate-100'
@@ -463,18 +455,18 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                     </span>
                   )}
                 </div>
-                <p className={`text-xs ${isCashier ? 'text-slate-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                <p className={`text-xs ${isCashier ? 'text-white/40' : 'text-slate-500 dark:text-slate-400'}`}>
                   Cód: {product.code} · Estoque: {product.stock_quantity} ·{' '}
                   {formatCurrency(product.sale_price)}
                 </p>
               </div>
               <span
                 className={`shrink-0 text-[11px] hidden sm:block ${
-                  isCashier ? 'text-slate-400' : 'text-slate-400 dark:text-slate-500'
+                  isCashier ? 'text-white/35' : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
                 {index === highlightedIndex ? (
-                  <span className={isCashier ? 'text-red-700 font-bold' : 'text-primary/80 dark:text-primary font-medium'}>
+                  <span className={isCashier ? 'text-emerald-300 font-medium' : 'text-primary/80 dark:text-primary font-medium'}>
                     ↵ Enter
                   </span>
                 ) : (
