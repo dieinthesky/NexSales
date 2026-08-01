@@ -228,6 +228,55 @@ export async function fetchProductImage(productId: string): Promise<{
   return { imageUrl }
 }
 
+/**
+ * PDV: qualquer usuário autenticado. Retorna foto do OFF e tenta gravar no produto
+ * (best-effort — se a coluna image_url ainda não existir, só devolve a URL).
+ */
+export async function resolveProductImageForPdv(
+  productId: string,
+  code: string,
+): Promise<{ imageUrl: string | null }> {
+  const trimmed = code.trim()
+  if (!productId || !/^\d{8,14}$/.test(trimmed)) {
+    return { imageUrl: null }
+  }
+
+  try {
+    const supabase = await createClient()
+    const { data: product, error: selectError } = await supabase
+      .from('products')
+      .select('image_url')
+      .eq('id', productId)
+      .maybeSingle()
+
+    // Se a coluna image_url ainda não existe, selectError vem preenchido —
+    // seguimos mesmo assim e só devolvemos a URL do OFF para o PDV mostrar.
+    if (!selectError && product?.image_url) {
+      return { imageUrl: product.image_url }
+    }
+
+    const imageUrl = await lookupExternalProductImage(trimmed)
+    if (!imageUrl) return { imageUrl: null }
+
+    if (!selectError) {
+      await supabase
+        .from('products')
+        .update({ image_url: imageUrl })
+        .eq('id', productId)
+        .is('image_url', null)
+    }
+
+    return { imageUrl }
+  } catch {
+    // Último recurso: tenta OFF mesmo se Supabase falhar
+    try {
+      return { imageUrl: await lookupExternalProductImage(trimmed) }
+    } catch {
+      return { imageUrl: null }
+    }
+  }
+}
+
 export async function createProduct(formData: FormData) {
   if (!(await isAdmin())) {
     return { error: 'Apenas administradores podem cadastrar produtos.' }

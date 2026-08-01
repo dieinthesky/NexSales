@@ -55,6 +55,19 @@ export async function getByCode(code: string): Promise<Product | null> {
   return product
 }
 
+/** Atualiza a foto no cache local (PDV) sem esperar o sync. */
+export async function patchLocalProductImage(
+  productId: string,
+  imageUrl: string,
+): Promise<void> {
+  try {
+    const db = getDB()
+    await db.products.update(productId, { image_url: imageUrl })
+  } catch {
+    // best-effort
+  }
+}
+
 const STALE_MS = 5 * 60_000 // re-sync if cache is older than 5 minutes
 
 /**

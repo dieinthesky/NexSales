@@ -23,8 +23,10 @@ import {
 } from '@/components/sales/payment-checkout'
 import { createSale } from '../actions'
 import { searchCustomers, createCustomer } from '../../clientes/actions'
+import { resolveProductImageForPdv } from '../../produtos/actions'
 import { searchCustomersOffline } from '@/lib/offline/customers-repo'
 import { queueSale } from '@/lib/offline/sales-repo'
+import { patchLocalProductImage } from '@/lib/offline/products-repo'
 import { formatCurrency, PAYMENT_LABELS } from '@/lib/utils/format'
 import { printReceipt } from '@/lib/utils/print-receipt'
 import type { CartItem, CustomerBalance, PaymentMethod, Product } from '@/types/database'
@@ -144,6 +146,40 @@ export function PDV({ avulsoProduct }: PDVProps) {
       return [...prev, item]
     })
   }
+
+  // Ao bipar: se o produto não tem foto no cache, busca no Open Food Facts na hora.
+  const lastCartProductId = cartItems[cartItems.length - 1]?.product.id
+  const lastCartProductCode = cartItems[cartItems.length - 1]?.product.code
+  const lastCartImageUrl = cartItems[cartItems.length - 1]?.product.image_url
+  const imageFetchTried = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!lastCartProductId || !lastCartProductCode) return
+    if (lastCartImageUrl) return
+    if (!/^\d{8,14}$/.test(lastCartProductCode)) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    if (imageFetchTried.current.has(lastCartProductId)) return
+    imageFetchTried.current.add(lastCartProductId)
+
+    let cancelled = false
+    void resolveProductImageForPdv(lastCartProductId, lastCartProductCode).then(
+      ({ imageUrl }) => {
+        if (cancelled || !imageUrl) return
+        setCartItems((prev) =>
+          prev.map((row) =>
+            row.product.id === lastCartProductId
+              ? { ...row, product: { ...row.product, image_url: imageUrl } }
+              : row,
+          ),
+        )
+        void patchLocalProductImage(lastCartProductId, imageUrl)
+      },
+    )
+
+    return () => {
+      cancelled = true
+    }
+  }, [lastCartProductId, lastCartProductCode, lastCartImageUrl])
 
   function handleUpdateDescription(productId: string, desc: string) {
     setCartItems((prev) =>
