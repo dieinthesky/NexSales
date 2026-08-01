@@ -54,6 +54,37 @@ function getOrCreateOfflineSecret(userData) {
   return secret
 }
 
+/**
+ * Server-only secrets written into standalone at desktop CI build
+ * (`.env.desktop`). Never ship this to the browser.
+ */
+function loadDesktopServerEnv(standaloneDir) {
+  const envPath = path.join(standaloneDir, '.env.desktop')
+  /** @type {Record<string, string>} */
+  const out = {}
+  try {
+    const raw = fss.readFileSync(envPath, 'utf8')
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq <= 0) continue
+      const key = trimmed.slice(0, eq).trim()
+      let value = trimmed.slice(eq + 1).trim()
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1)
+      }
+      out[key] = value
+    }
+  } catch {
+    // Optional — web/Vercel builds don't need this file.
+  }
+  return out
+}
+
 function getProjectRoot() {
   // app.isPackaged is true when running from an installed .exe
   // electron-builder puts app files inside resources/app.asar
@@ -138,6 +169,7 @@ async function startNextServer() {
     env: {
       ...process.env,
       ...extraEnv,
+      ...loadDesktopServerEnv(standaloneDir),
       ELECTRON_APP: 'true',
       DB_PATH: dbPath,
       OFFLINE_CREDS_PATH: app.getPath('userData'),

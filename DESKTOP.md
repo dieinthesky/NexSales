@@ -5,13 +5,14 @@ Neste PC o Node/npm completo não está instalado. O instalador é gerado no **G
 ## 1) Secrets no GitHub (uma vez)
 
 1. Abre: https://github.com/dieinthesky/NexSales/settings/secrets/actions  
-2. **New repository secret** — cria estes 3:
+2. **New repository secret** — cria estes 4:
 
 | Name | Value |
 |------|--------|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://zxctuiwkkkgelemdaujc.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | a mesma anon/publishable da Vercel |
 | `OFFLINE_SESSION_SECRET` | qualquer texto longo (pode ser o da Vercel) |
+| `SUPABASE_SERVICE_ROLE_KEY` | a mesma service_role da Vercel (Settings → API no Supabase) |
 
 ## 2) Subir o código deste repo
 

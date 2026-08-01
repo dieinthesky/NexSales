@@ -1,7 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createServiceClient, usernameToEmail } from '@/lib/supabase/service'
+import { createClient } from '@/lib/supabase/server'
+import {
+  createServiceClient,
+  tryCreateServiceClient,
+  usernameToEmail,
+} from '@/lib/supabase/service'
 import { getCurrentUser, isAdmin, isMaster, requireAdmin } from '@/lib/auth/roles'
 import { createEmployeeSchema } from '@/lib/validations/auth.schema'
 import type { UserRole } from '@/types/database'
@@ -21,31 +26,24 @@ export interface AdminUserRow {
   last_sign_in_at: string | null
 }
 
-/**
- * Lista usuários com service role após requireAdmin().
- * Evita o "forbidden" do RPC quando a sessão JWT expirou (comum no app desktop
- * com cookie offline ainda válido).
- */
-export async function listAdminUsers(): Promise<{
-  users: AdminUserRow[]
-  viewerRole: UserRole
-  error?: string
-}> {
-  const current = await requireAdmin()
-  const service = createServiceClient()
+async function listViaServiceRole(
+  currentId: string,
+  cookieRole: UserRole,
+  cookieStoreId: string | null,
+): Promise<{ users: AdminUserRow[]; viewerRole: UserRole; error?: string } | null> {
+  const service = tryCreateServiceClient()
+  if (!service) return null
 
-  // Cookie offline pode estar desatualizado (ex.: ainda "admin" após promover a master).
-  // Confia no banco via service role.
   const [{ data: liveRole }, { data: liveMembership }] = await Promise.all([
-    service.from('user_roles').select('role').eq('user_id', current.id).maybeSingle(),
+    service.from('user_roles').select('role').eq('user_id', currentId).maybeSingle(),
     service
       .from('store_members')
       .select('store_id')
-      .eq('user_id', current.id)
+      .eq('user_id', currentId)
       .maybeSingle(),
   ])
-  const effectiveRole = (liveRole?.role as UserRole | undefined) ?? current.role
-  const effectiveStoreId = liveMembership?.store_id ?? current.storeId
+  const effectiveRole = (liveRole?.role as UserRole | undefined) ?? cookieRole
+  const effectiveStoreId = liveMembership?.store_id ?? cookieStoreId
 
   const [{ data: authData, error: authError }, rolesRes, profilesRes, membersRes] =
     await Promise.all([
@@ -101,6 +99,57 @@ export async function listAdminUsers(): Promise<{
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
 
   return { users, viewerRole: effectiveRole }
+}
+
+async function listViaRpc(
+  cookieRole: UserRole,
+): Promise<{ users: AdminUserRow[]; viewerRole: UserRole; error?: string }> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('admin_list_users')
+  if (error) {
+    const msg = error.message.includes('forbidden')
+      ? 'Sessão expirada. Saia e entre de novo com internet.'
+      : error.message
+    return { users: [], viewerRole: cookieRole, error: msg }
+  }
+  return {
+    users: (data ?? []) as AdminUserRow[],
+    viewerRole: cookieRole,
+  }
+}
+
+/**
+ * Lista usuários: service role (web/desktop com secret) ou RPC (JWT).
+ * Nunca lança — evita o error boundary genérico no app desktop.
+ */
+export async function listAdminUsers(): Promise<{
+  users: AdminUserRow[]
+  viewerRole: UserRole
+  error?: string
+}> {
+  const current = await requireAdmin()
+
+  try {
+    const viaService = await listViaServiceRole(
+      current.id,
+      current.role,
+      current.storeId,
+    )
+    if (viaService) return viaService
+  } catch (err) {
+    console.error('[listAdminUsers] service role failed:', err)
+  }
+
+  try {
+    return await listViaRpc(current.role)
+  } catch (err) {
+    console.error('[listAdminUsers] rpc failed:', err)
+    return {
+      users: [],
+      viewerRole: current.role,
+      error: err instanceof Error ? err.message : 'Erro ao carregar usuários.',
+    }
+  }
 }
 
 async function targetRole(userId: string): Promise<UserRole | null> {

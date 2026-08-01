@@ -59,9 +59,14 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           if [ -z "$NEXT_PUBLIC_SUPABASE_URL" ] || [ -z "$NEXT_PUBLIC_SUPABASE_ANON_KEY" ]; then
             echo "Faltam secrets: NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY"
+            exit 1
+          fi
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "Falta secret: SUPABASE_SERVICE_ROLE_KEY (Settings → Secrets → Actions)"
             exit 1
           fi
 
@@ -69,6 +74,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OFFLINE_SESSION_SECRET: ${{ secrets.OFFLINE_SESSION_SECRET || 'desktop-build-placeholder-secret-32chars' }}
         # --webpack: standalone inclui melhor os serverExternalPackages (better-sqlite3)
         run: npx next build --webpack
@@ -81,6 +87,15 @@ jobs:
 
       - name: Copy standalone assets
         run: node scripts/copy-standalone.mjs
+
+      - name: Write desktop server secrets into standalone
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          # Lido pelo Electron em runtime (não vai pro browser).
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$SUPABASE_SERVICE_ROLE_KEY" > .next/standalone/.env.desktop
+          echo "Wrote .env.desktop for Electron server"
 
       - name: Smoke-check better-sqlite3 in standalone (Electron ABI)
         shell: bash
