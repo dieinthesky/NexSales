@@ -57,6 +57,11 @@ const PAYMENT_STYLES: Record<PaymentMethod, PaymentStyle> = {
     dot: 'bg-amber-500',
     bar: 'bg-amber-500',
   },
+  mixed: {
+    badge: 'bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-600/15',
+    dot: 'bg-teal-500',
+    bar: 'bg-teal-500',
+  },
 }
 
 interface CashCloseViewProps {

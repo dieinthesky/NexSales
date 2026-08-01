@@ -19,6 +19,7 @@ import {
   Tag,
   ArrowLeft,
   Keyboard,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,7 +38,7 @@ import { createSale } from '../actions'
 import { searchCustomers, createCustomer } from '../../clientes/actions'
 import { searchCustomersOffline } from '@/lib/offline/customers-repo'
 import { queueSale } from '@/lib/offline/sales-repo'
-import { formatCurrency } from '@/lib/utils/format'
+import { formatCurrency, PAYMENT_LABELS } from '@/lib/utils/format'
 import { printReceipt } from '@/lib/utils/print-receipt'
 import type { CartItem, CustomerBalance, PaymentMethod, Product } from '@/types/database'
 
@@ -48,13 +49,36 @@ interface OfflineSaleConfirmation {
   paymentLabel: string
 }
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
+interface CompletedSale {
+  saleId: string
+  total: number
+  paymentLabel: string
+}
+
+interface PayLine {
+  id: string
+  method: PaymentMethod | ''
+  amountRaw: string
+}
+
+type TenderMethod = Exclude<PaymentMethod, 'mixed'>
+
+const PAYMENT_OPTIONS: { value: TenderMethod; label: string }[] = [
   { value: 'cash', label: 'Dinheiro' },
   { value: 'pix', label: 'PIX' },
   { value: 'credit', label: 'Cartão de Crédito' },
   { value: 'debit', label: 'Cartão de Débito' },
   { value: 'fiado', label: 'Fiado' },
 ]
+
+function newPayLine(amountRaw = ''): PayLine {
+  return { id: crypto.randomUUID(), method: '', amountRaw }
+}
+
+function parseMoney(raw: string): number {
+  const n = parseFloat(raw.replace(',', '.'))
+  return Number.isFinite(n) ? n : NaN
+}
 
 interface PDVProps {
   avulsoProduct?: Product | null
@@ -63,10 +87,11 @@ interface PDVProps {
 export function PDV({ avulsoProduct }: PDVProps) {
   const router = useRouter()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('')
+  const [payLines, setPayLines] = useState<PayLine[]>([newPayLine()])
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [offlineSale, setOfflineSale] = useState<OfflineSaleConfirmation | null>(null)
+  const [completedSale, setCompletedSale] = useState<CompletedSale | null>(null)
   const [triedSubmit, setTriedSubmit] = useState(false)
   const [cashReceivedRaw, setCashReceivedRaw] = useState('')
   const [checkoutOpen, setCheckoutOpen] = useState(false)
@@ -100,21 +125,47 @@ export function PDV({ avulsoProduct }: PDVProps) {
     return () => clearInterval(id)
   }, [])
 
-  const paymentMissing = !paymentMethod
-  const customerMissing = paymentMethod === 'fiado' && !selectedCustomer
-
   const total = cartItems.reduce(
     (sum, item) => sum + (item.customPrice ?? item.product.sale_price) * item.quantity,
     0,
   )
   const itemCount = cartItems.reduce((sum, item) => sum + item.quantity, 0)
 
-  const cashReceived = cashReceivedRaw.trim()
-    ? parseFloat(cashReceivedRaw.replace(',', '.'))
-    : NaN
+  const parsedPayLines = payLines.map((line) => ({
+    ...line,
+    amount: parseMoney(line.amountRaw),
+  }))
+  const payAllocated = parsedPayLines.reduce(
+    (sum, line) => sum + (Number.isFinite(line.amount) && line.amount > 0 ? line.amount : 0),
+    0,
+  )
+  const payRemaining = Math.round((total - payAllocated) * 100) / 100
+  const hasFiadoLine = parsedPayLines.some((l) => l.method === 'fiado')
+  const cashPortion = parsedPayLines
+    .filter((l) => l.method === 'cash' && Number.isFinite(l.amount) && l.amount > 0)
+    .reduce((sum, l) => sum + l.amount, 0)
+  const paymentMissing = parsedPayLines.every((l) => !l.method)
+  const customerMissing = hasFiadoLine && !selectedCustomer
+
+  const cashReceived = cashReceivedRaw.trim() ? parseMoney(cashReceivedRaw) : NaN
   const hasCashEntered = !Number.isNaN(cashReceived)
-  const change = hasCashEntered ? cashReceived - total : 0
-  const cashShort = hasCashEntered && cashReceived < total
+  const change = hasCashEntered ? cashReceived - cashPortion : 0
+  const cashShort = cashPortion > 0 && hasCashEntered && cashReceived < cashPortion - 0.001
+
+  function paymentLabelFromLines(
+    lines: { method: PaymentMethod | ''; amount: number }[],
+  ): string {
+    const valid = lines.filter(
+      (l) => l.method && l.method !== 'mixed' && Number.isFinite(l.amount) && l.amount > 0,
+    )
+    if (valid.length === 0) return '—'
+    if (valid.length === 1) {
+      return PAYMENT_LABELS[valid[0].method] ?? valid[0].method
+    }
+    return valid
+      .map((l) => `${PAYMENT_LABELS[l.method] ?? l.method} ${formatCurrency(l.amount)}`)
+      .join(' + ')
+  }
 
   function handleAddItem(item: CartItem) {
     const addQty = Math.max(1, item.quantity)
@@ -173,7 +224,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
   }
 
   useEffect(() => {
-    if (paymentMethod !== 'fiado') return
+    if (!hasFiadoLine) return
     if (!customerQuery.trim()) {
       setCustomerResults([])
       return
@@ -193,7 +244,15 @@ export function PDV({ avulsoProduct }: PDVProps) {
     return () => {
       if (searchDebounce.current) clearTimeout(searchDebounce.current)
     }
-  }, [customerQuery, paymentMethod])
+  }, [customerQuery, hasFiadoLine])
+
+  useEffect(() => {
+    if (hasFiadoLine) return
+    setSelectedCustomer(null)
+    setCustomerQuery('')
+    setCustomerResults([])
+    setShowNewCustomerForm(false)
+  }, [hasFiadoLine])
 
   function formatPhone(value: string): string {
     const digits = value.replace(/\D/g, '').slice(0, 11)
@@ -230,6 +289,42 @@ export function PDV({ avulsoProduct }: PDVProps) {
     }
   }
 
+  function buildPayments():
+    | { header: PaymentMethod; lines: { method: TenderMethod; amount: number }[]; label: string }
+    | { error: string } {
+    const lines = parsedPayLines
+      .filter((l) => l.method && l.method !== 'mixed' && Number.isFinite(l.amount) && l.amount > 0)
+      .map((l) => ({ method: l.method as TenderMethod, amount: Math.round(l.amount * 100) / 100 }))
+
+    if (lines.length === 0) {
+      return { error: 'Selecione o método de pagamento' }
+    }
+
+    const sum = Math.round(lines.reduce((s, l) => s + l.amount, 0) * 100) / 100
+    if (Math.abs(sum - total) > 0.009) {
+      return {
+        error:
+          payRemaining > 0
+            ? `Ainda falta alocar ${formatCurrency(payRemaining)}`
+            : `Pagamentos passam do total em ${formatCurrency(Math.abs(payRemaining))}`,
+      }
+    }
+
+    const fiadoCount = lines.filter((l) => l.method === 'fiado').length
+    if (fiadoCount > 0 && lines.length > 1) {
+      return { error: 'Fiado não pode misturar com outras formas de pagamento' }
+    }
+    if (fiadoCount > 0 && !selectedCustomer) {
+      return { error: 'Selecione um cliente para a venda fiada' }
+    }
+    if (cashPortion > 0 && hasCashEntered && cashShort) {
+      return { error: 'Valor em dinheiro recebido é menor que a parte em dinheiro' }
+    }
+
+    const header: PaymentMethod = lines.length > 1 ? 'mixed' : lines[0].method
+    return { header, lines, label: paymentLabelFromLines(lines) }
+  }
+
   async function handleSubmit() {
     setTriedSubmit(true)
 
@@ -237,16 +332,10 @@ export function PDV({ avulsoProduct }: PDVProps) {
       toast.error('Adicione pelo menos um produto')
       return
     }
-    if (!paymentMethod) {
-      toast.error('Selecione o método de pagamento')
-      return
-    }
-    if (paymentMethod === 'cash' && hasCashEntered && cashShort) {
-      toast.error('Valor recebido é menor que o total da venda')
-      return
-    }
-    if (paymentMethod === 'fiado' && !selectedCustomer) {
-      toast.error('Selecione um cliente para a venda fiada')
+
+    const built = buildPayments()
+    if ('error' in built) {
+      toast.error(built.error)
       return
     }
 
@@ -270,17 +359,18 @@ export function PDV({ avulsoProduct }: PDVProps) {
 
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        await saveOffline(clientUuid)
+        await saveOffline(clientUuid, built.header, built.lines, built.label)
         return
       }
 
       try {
         const result = await createSale({
-          payment_method: paymentMethod,
+          payment_method: built.header,
           notes,
           items: rpcItems,
           client_uuid: clientUuid,
           customer_id: selectedCustomer?.id ?? null,
+          payments: built.lines,
         })
 
         if (result.error) {
@@ -289,34 +379,41 @@ export function PDV({ avulsoProduct }: PDVProps) {
             result.code === 'unauthenticated' ||
             result.error.toLowerCase().includes('sessão')
           ) {
-            await saveOffline(clientUuid)
+            await saveOffline(clientUuid, built.header, built.lines, built.label)
             return
           }
           toast.error(result.error)
           return
         }
 
-        // Limpa o carrinho antes do redirect — evita venda duplicada se o usuário clicar de novo
+        const saleId = result.saleId!
+        const saleTotal = total
+        const saleLabel = built.label
         resetForm()
-        toast.success('Venda registrada com sucesso!')
-        router.push(`/vendas/${result.saleId}`)
+        setCompletedSale({ saleId, total: saleTotal, paymentLabel: saleLabel })
+        toast.success('Venda registrada!')
       } catch {
-        await saveOffline(clientUuid)
+        await saveOffline(clientUuid, built.header, built.lines, built.label)
       }
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  async function saveOffline(clientUuid: string) {
-    if (!paymentMethod) return
+  async function saveOffline(
+    clientUuid: string,
+    header: PaymentMethod,
+    lines: { method: TenderMethod; amount: number }[],
+    label: string,
+  ) {
     try {
       await queueSale({
         client_uuid: clientUuid,
-        payment_method: paymentMethod,
+        payment_method: header,
         notes,
         total,
         customer_id: selectedCustomer?.id ?? null,
+        payments: lines,
         items: cartItems.map((item) => ({
           product_id: item.product.id,
           quantity: item.quantity,
@@ -332,8 +429,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
 
     const confirmation: OfflineSaleConfirmation = {
       total,
-      paymentLabel:
-        PAYMENT_OPTIONS.find((o) => o.value === paymentMethod)?.label ?? paymentMethod,
+      paymentLabel: label,
       items: cartItems.map((item) => ({
         name: item.product.name,
         quantity: item.quantity,
@@ -361,7 +457,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
 
   function resetForm() {
     setCartItems([])
-    setPaymentMethod('')
+    setPayLines([newPayLine()])
     setNotes('')
     setCashReceivedRaw('')
     setTriedSubmit(false)
@@ -384,7 +480,64 @@ export function PDV({ avulsoProduct }: PDVProps) {
       toast.error('Adicione pelo menos um produto')
       return
     }
+    setCompletedSale(null)
+    setPayLines([newPayLine(total.toFixed(2).replace('.', ','))])
+    setCashReceivedRaw('')
+    setTriedSubmit(false)
     setCheckoutOpen(true)
+  }
+
+  function updatePayLine(id: string, patch: Partial<PayLine>) {
+    setPayLines((prev) => {
+      if (patch.method === 'fiado') {
+        return [
+          {
+            id,
+            method: 'fiado',
+            amountRaw: total.toFixed(2).replace('.', ','),
+          },
+        ]
+      }
+
+      return prev.map((line) => {
+        if (line.id !== id) return line
+        const next = { ...line, ...patch }
+        if (
+          patch.method &&
+          !line.method &&
+          (!line.amountRaw.trim() || !(parseMoney(line.amountRaw) > 0))
+        ) {
+          const others = prev
+            .filter((l) => l.id !== id)
+            .reduce((s, l) => {
+              const a = parseMoney(l.amountRaw)
+              return s + (Number.isFinite(a) && a > 0 ? a : 0)
+            }, 0)
+          const rest = Math.max(0, Math.round((total - others) * 100) / 100)
+          next.amountRaw = rest.toFixed(2).replace('.', ',')
+        }
+        return next
+      })
+    })
+  }
+
+  function addPayLine() {
+    if (hasFiadoLine) {
+      toast.error('Fiado não pode misturar com outras formas')
+      return
+    }
+    if (payRemaining <= 0) {
+      toast.error('O total já está coberto')
+      return
+    }
+    setPayLines((prev) => [
+      ...prev,
+      newPayLine(payRemaining.toFixed(2).replace('.', ',')),
+    ])
+  }
+
+  function removePayLine(id: string) {
+    setPayLines((prev) => (prev.length <= 1 ? prev : prev.filter((l) => l.id !== id)))
   }
 
   const canSubmit = !isSubmitting && cartItems.length > 0
@@ -567,7 +720,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
               </p>
             </div>
 
-            {paymentMethod === 'cash' && hasCashEntered && (
+            {cashPortion > 0 && hasCashEntered && (
               <div
                 className={`rounded-2xl px-4 py-4 ${
                   cashShort ? 'bg-red-600' : 'bg-[#10233a] ring-1 ring-white/10'
@@ -598,6 +751,37 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </aside>
       </div>
 
+      {/* Venda concluída — permanece no caixa */}
+      {completedSale && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-400/30 bg-[#0d1c31] p-6 shadow-2xl">
+            <div className="flex items-center gap-2 text-emerald-300">
+              <CheckCircle2 className="h-6 w-6" />
+              <p className="text-lg font-bold text-white">Venda concluída</p>
+            </div>
+            <p className="mt-3 text-4xl font-black tabular-nums text-white">
+              {formatCurrency(completedSale.total)}
+            </p>
+            <p className="mt-1 text-sm text-white/50">{completedSale.paymentLabel}</p>
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <Button
+                className="h-12 flex-1 bg-emerald-500 font-bold text-[#04120c] hover:bg-emerald-400"
+                onClick={() => setCompletedSale(null)}
+              >
+                Nova venda
+              </Button>
+              <Button
+                variant="outline"
+                className="h-12 flex-1 border-white/15 bg-transparent text-white hover:bg-white/5"
+                onClick={() => router.push(`/vendas/${completedSale.saleId}/recibo`)}
+              >
+                Ver recibo
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Checkout sheet */}
       {checkoutOpen && (
         <div className="absolute inset-0 z-10 flex items-stretch justify-end bg-black/55 backdrop-blur-[2px]">
@@ -623,57 +807,109 @@ export function PDV({ avulsoProduct }: PDVProps) {
             </div>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4">
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-xs font-medium text-white/70 flex items-center gap-1.5">
                   <CreditCard className="h-3.5 w-3.5" />
-                  Método de pagamento <span className="text-red-400">*</span>
+                  Formas de pagamento <span className="text-red-400">*</span>
                 </Label>
-                <Select
-                  value={paymentMethod}
-                  items={PAYMENT_OPTIONS}
-                  onValueChange={(v) => {
-                    const next = v as PaymentMethod
-                    setPaymentMethod(next)
-                    if (next !== 'cash') setCashReceivedRaw('')
-                    if (next !== 'fiado') {
-                      setSelectedCustomer(null)
-                      setCustomerQuery('')
-                      setCustomerResults([])
-                      setShowNewCustomerForm(false)
-                    }
-                  }}
-                >
-                  <SelectTrigger
-                    aria-invalid={triedSubmit && paymentMissing}
-                    className={
-                      triedSubmit && paymentMissing
-                        ? 'h-11 border-red-500 bg-[#0a1628] text-white'
-                        : 'h-11 border-white/15 bg-[#0a1628] text-white'
-                    }
+                <p className="text-[11px] text-white/40">
+                  Ex.: R$ 10 no PIX + R$ 10 no dinheiro — adicione as duas linhas.
+                </p>
+
+                <div className="space-y-2">
+                  {payLines.map((line) => (
+                    <div
+                      key={line.id}
+                      className="grid grid-cols-[1fr_100px_36px] gap-2 rounded-xl border border-white/10 bg-[#0a1628] p-2"
+                    >
+                      <Select
+                        value={line.method}
+                        items={PAYMENT_OPTIONS}
+                        onValueChange={(v) => {
+                          updatePayLine(line.id, { method: v as TenderMethod })
+                        }}
+                      >
+                        <SelectTrigger
+                          aria-invalid={triedSubmit && !line.method}
+                          className="h-10 border-white/15 bg-transparent text-white"
+                        >
+                          <SelectValue placeholder="Método..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PAYMENT_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="text"
+                        inputMode="decimal"
+                        value={line.amountRaw}
+                        onChange={(e) =>
+                          updatePayLine(line.id, {
+                            amountRaw: e.target.value.replace(/[^\d,.]/g, ''),
+                          })
+                        }
+                        placeholder="0,00"
+                        className="h-10 border-white/15 bg-transparent text-right tabular-nums text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removePayLine(line.id)}
+                        disabled={payLines.length <= 1}
+                        className="inline-flex h-10 w-9 items-center justify-center rounded-md text-white/40 hover:bg-white/5 hover:text-red-300 disabled:opacity-20"
+                        aria-label="Remover forma"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={addPayLine}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200"
                   >
-                    <SelectValue placeholder="Selecione..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PAYMENT_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <Plus className="h-3.5 w-3.5" />
+                    Outra forma
+                  </button>
+                  <p
+                    className={`text-xs font-semibold tabular-nums ${
+                      Math.abs(payRemaining) < 0.01
+                        ? 'text-emerald-300'
+                        : payRemaining > 0
+                          ? 'text-amber-300'
+                          : 'text-red-300'
+                    }`}
+                  >
+                    {Math.abs(payRemaining) < 0.01
+                      ? 'Total coberto'
+                      : payRemaining > 0
+                        ? `Falta ${formatCurrency(payRemaining)}`
+                        : `Sobra ${formatCurrency(Math.abs(payRemaining))}`}
+                  </p>
+                </div>
+
                 {triedSubmit && paymentMissing && (
                   <p className="text-red-400 text-xs">Selecione o método de pagamento.</p>
                 )}
               </div>
 
-              {paymentMethod === 'cash' && (
+              {cashPortion > 0 && (
                 <div className="space-y-3 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3">
                   <Label
                     htmlFor="cash-received"
                     className="text-xs font-medium text-emerald-200 flex items-center gap-1.5"
                   >
                     <Banknote className="h-3.5 w-3.5" />
-                    Valor recebido
+                    Dinheiro recebido
+                    <span className="font-normal text-emerald-100/60">
+                      (parte: {formatCurrency(cashPortion)})
+                    </span>
                   </Label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-white/40">
@@ -694,7 +930,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
                     />
                   </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {[total, 50, 100, 200].map((preset, idx) => (
+                    {[cashPortion, 50, 100, 200].map((preset, idx) => (
                       <button
                         key={`${preset}-${idx}`}
                         type="button"
@@ -722,7 +958,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
                 </div>
               )}
 
-              {paymentMethod === 'fiado' && (
+              {hasFiadoLine && (
                 <div className="space-y-3 rounded-xl border border-amber-400/25 bg-amber-500/10 p-3">
                   <Label className="text-xs font-medium text-amber-100 flex items-center gap-1.5">
                     <UserRound className="h-3.5 w-3.5" />

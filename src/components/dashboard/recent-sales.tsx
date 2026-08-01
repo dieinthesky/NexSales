@@ -16,6 +16,7 @@ const PAYMENT_BADGE: Record<PaymentMethod, { badge: string; dot: string }> = {
   credit: { badge: 'bg-primary/5 dark:bg-primary/10 text-primary/80 dark:text-primary/90 ring-1 ring-inset ring-primary/20', dot: 'bg-primary/90' },
   debit: { badge: 'bg-orange-50 dark:bg-orange-500/10 text-orange-700 dark:text-orange-400 ring-1 ring-inset ring-orange-600/15 dark:ring-orange-500/20', dot: 'bg-orange-500' },
   fiado: { badge: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/15 dark:ring-amber-500/20', dot: 'bg-amber-500' },
+  mixed: { badge: 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 ring-1 ring-inset ring-teal-600/15 dark:ring-teal-500/20', dot: 'bg-teal-500' },
 }
 
 export function RecentSales({ sales }: RecentSalesProps) {

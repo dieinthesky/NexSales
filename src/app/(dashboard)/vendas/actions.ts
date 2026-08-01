@@ -14,14 +14,21 @@ interface SaleItem {
   item_description?: string
 }
 
+export interface SalePaymentInput {
+  method: Exclude<PaymentMethod, 'mixed'>
+  amount: number
+}
+
 interface CreateSaleInput {
   payment_method: PaymentMethod
   notes: string
   items: SaleItem[]
   /** Idempotency key for offline sales. Null/omitted for normal online sales. */
   client_uuid?: string
-  /** Required when payment_method is 'fiado'. */
+  /** Required when payment_method is 'fiado' (or any fiado line). */
   customer_id?: string | null
+  /** Split tender lines. When omitted, server records one line = full total. */
+  payments?: SalePaymentInput[]
 }
 
 /**
@@ -36,6 +43,7 @@ export type CreateSaleErrorCode =
   | 'empty_cart'
   | 'unauthenticated'
   | 'customer_required'
+  | 'payment_mismatch'
   | 'unknown'
 
 export interface CreateSaleResult {
@@ -53,6 +61,7 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     p_items: input.items as unknown as Json,
     p_client_uuid: input.client_uuid ?? null,
     p_customer_id: input.customer_id ?? null,
+    p_payments: (input.payments ?? null) as unknown as Json,
   })
 
   if (error) {
@@ -72,6 +81,12 @@ export async function createSale(input: CreateSaleInput): Promise<CreateSaleResu
     }
     if (msg.includes('customer_required')) {
       return { error: 'Selecione um cliente para venda fiada.', code: 'customer_required' }
+    }
+    if (msg.includes('payment_mismatch') || msg.includes('invalid_payment')) {
+      return {
+        error: 'Soma das formas de pagamento deve fechar o total da venda.',
+        code: 'payment_mismatch',
+      }
     }
     return { error: error.message, code: 'unknown' }
   }

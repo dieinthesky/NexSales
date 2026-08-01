@@ -42,6 +42,10 @@ const PAYMENT_STYLES: Record<PaymentMethod, PaymentStyle> = {
     badge: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 ring-1 ring-inset ring-amber-600/15 dark:ring-amber-500/20',
     dot: 'bg-amber-500',
   },
+  mixed: {
+    badge: 'bg-teal-50 dark:bg-teal-500/10 text-teal-700 dark:text-teal-400 ring-1 ring-inset ring-teal-600/15 dark:ring-teal-500/20',
+    dot: 'bg-teal-500',
+  },
 }
 
 function PaymentBadge({ method }: { method: PaymentMethod }) {

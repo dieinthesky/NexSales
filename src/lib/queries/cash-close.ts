@@ -82,18 +82,33 @@ export async function getCashClose(
   const { start, end } = brDayRangeUTC(localDate)
 
   const supabase = client ?? (await createClient())
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('sales')
     .select(
-      'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name))',
+      'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name)), sale_payments(payment_method, amount)',
     )
     .gte('created_at', start)
     .lte('created_at', end)
     .order('created_at', { ascending: true })
 
+  // Antes da migração sale_payments, cai no select antigo.
+  if (error?.message?.includes('sale_payments')) {
+    ;({ data, error } = await supabase
+      .from('sales')
+      .select(
+        'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name))',
+      )
+      .gte('created_at', start)
+      .lte('created_at', end)
+      .order('created_at', { ascending: true }))
+  }
+
   if (error) throw new Error(error.message)
 
-  const rows = (data ?? []) as unknown as RawSale[]
+  type RawSaleWithPays = RawSale & {
+    sale_payments?: { payment_method: PaymentMethod; amount: number }[] | null
+  }
+  const rows = (data ?? []) as unknown as RawSaleWithPays[]
 
   const sales: SaleRow[] = rows.map((row) => ({
     id: row.id,
@@ -112,18 +127,30 @@ export async function getCashClose(
 
   const byPaymentMap = new Map<PaymentMethod, PaymentBreakdown>()
   let total = 0
-  for (const sale of sales) {
-    total += sale.total_amount
-    const current = byPaymentMap.get(sale.payment_method) ?? {
-      method: sale.payment_method,
-      count: 0,
-      total: 0,
+  for (const row of rows) {
+    const saleTotal = Number(row.total_amount)
+    total += saleTotal
+    const pays = row.sale_payments ?? []
+    if (pays.length > 0) {
+      for (const pay of pays) {
+        const method = pay.payment_method
+        const amount = Number(pay.amount)
+        const current = byPaymentMap.get(method) ?? { method, count: 0, total: 0 }
+        byPaymentMap.set(method, {
+          method,
+          count: current.count + 1,
+          total: current.total + amount,
+        })
+      }
+    } else {
+      const method = row.payment_method as PaymentMethod
+      const current = byPaymentMap.get(method) ?? { method, count: 0, total: 0 }
+      byPaymentMap.set(method, {
+        method,
+        count: current.count + 1,
+        total: current.total + saleTotal,
+      })
     }
-    byPaymentMap.set(sale.payment_method, {
-      method: sale.payment_method,
-      count: current.count + 1,
-      total: current.total + sale.total_amount,
-    })
   }
 
   const byPayment = Array.from(byPaymentMap.values()).sort((a, b) => b.total - a.total)

@@ -24,4 +24,5 @@ export const PAYMENT_LABELS: Record<string, string> = {
   debit: 'Cartão de Débito',
   pix: 'PIX',
   fiado: 'Fiado',
+  mixed: 'Misto',
 }

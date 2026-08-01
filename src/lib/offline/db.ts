@@ -40,12 +40,19 @@ export interface PendingSaleItem {
  * to be flushed to Supabase. `id` is the client-generated UUID used as the
  * idempotency key by the `create_sale_with_items` RPC.
  */
+export interface PendingSalePayment {
+  method: Exclude<PaymentMethod, 'mixed'>
+  amount: number
+}
+
 export interface PendingSale {
   id: string
   payment_method: PaymentMethod
   notes: string
   items: PendingSaleItem[]
   total: number
+  /** Split tender lines (PIX + dinheiro, etc.). */
+  payments?: PendingSalePayment[]
   /** UUID of the customer for fiado sales; null/undefined for regular sales. */
   customer_id?: string | null
   createdAt: string // ISO timestamp

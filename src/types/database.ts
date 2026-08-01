@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
-export type PaymentMethod = 'cash' | 'credit' | 'debit' | 'pix' | 'fiado'
+export type PaymentMethod = 'cash' | 'credit' | 'debit' | 'pix' | 'fiado' | 'mixed'
 
 export type UserRole = 'admin' | 'employee'
 
@@ -352,6 +352,7 @@ export interface Database {
           p_items: Json
           p_client_uuid?: string | null
           p_customer_id?: string | null
+          p_payments?: Json | null
         }
         Returns: string
       }

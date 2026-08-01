@@ -24,6 +24,7 @@ export interface QueueSaleInput {
   items: PendingSaleItem[]
   total: number
   customer_id?: string | null
+  payments?: { method: Exclude<PaymentMethod, 'mixed'>; amount: number }[]
 }
 
 /**
@@ -40,6 +41,7 @@ export async function queueSale(input: QueueSaleInput): Promise<void> {
     items: input.items,
     total: input.total,
     customer_id: input.customer_id ?? null,
+    payments: input.payments,
     createdAt: new Date().toISOString(),
     status: 'pending',
     attempts: 0,
@@ -126,6 +128,7 @@ export async function flushPendingSales(): Promise<{ synced: number; failed: num
         })),
         client_uuid: sale.id,
         customer_id: sale.customer_id ?? null,
+        payments: sale.payments,
       }).catch((err: unknown) => ({
         // A thrown call means the request never reached the server (network).
         error: err instanceof Error ? err.message : 'network',
