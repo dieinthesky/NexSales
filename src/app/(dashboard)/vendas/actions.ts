@@ -82,6 +82,16 @@ function mapCreateSaleError(msg: string): CreateSaleResult {
       code: 'unknown',
     }
   }
+  if (
+    msg.includes('invalid input value for enum payment_method') &&
+    msg.toLowerCase().includes('mixed')
+  ) {
+    return {
+      error:
+        'Falta o valor "mixed" no banco. No Supabase SQL Editor rode só isto e tente de novo: ALTER TYPE public.payment_method ADD VALUE \'mixed\';',
+      code: 'unknown',
+    }
+  }
   return { error: msg, code: 'unknown' }
 }
 
