@@ -91,7 +91,7 @@ export default async function VendasPage({
   // A trava é no servidor: mesmo que ele force ?day=2026-01-01 na URL, aqui
   // sobrescrevemos para o dia de hoje (BRT). Admin vê o histórico completo.
   const user = await getCurrentUser()
-  const isEmployee = user?.role !== 'admin'
+  const isEmployee = user?.role !== 'admin' && user?.role !== 'master'
   const day = isEmployee
     ? todayBRISO()
     : isIsoDate(sp.day)

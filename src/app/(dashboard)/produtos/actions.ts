@@ -9,7 +9,7 @@ import {
   lookupExternalProductImage,
   type BarcodeSource,
 } from '@/lib/barcode/lookup'
-import { isAdmin } from '@/lib/auth/roles'
+import { getCurrentUser, isAdmin } from '@/lib/auth/roles'
 
 export type BarcodeLookupResult =
   | {
@@ -300,6 +300,11 @@ export async function createProduct(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
+  const user = await getCurrentUser()
+  if (!user?.storeId) {
+    return { error: 'Sua conta não está vinculada a uma loja.' }
+  }
+
   const supabase = await createClient()
   const externalUrl = String(imageUrlField ?? '').trim() || null
 
@@ -310,6 +315,7 @@ export async function createProduct(formData: FormData) {
       category_id: parsed.data.category_id || null,
       description: parsed.data.description || null,
       image_url: externalUrl,
+      store_id: user.storeId,
     })
     .select('id')
     .single()
@@ -502,6 +508,11 @@ export async function createProductFromVisit(input: {
     return { error: parsed.error.issues[0].message }
   }
 
+  const user = await getCurrentUser()
+  if (!user?.storeId) {
+    return { error: 'Sua conta não está vinculada a uma loja.' }
+  }
+
   const supabase = await createClient()
   const imageUrl = input.image_url?.trim() || null
 
@@ -512,6 +523,7 @@ export async function createProductFromVisit(input: {
       category_id: parsed.data.category_id || null,
       description: parsed.data.description || null,
       image_url: imageUrl,
+      store_id: user.storeId,
     })
     .select('id, code, name, stock_quantity, sale_price')
     .single()

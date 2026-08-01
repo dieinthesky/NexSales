@@ -28,18 +28,37 @@ export interface SyncResult {
  * Full refresh of `products`. Active products only — inactive ones aren't
  * useful in the PDV and would bloat the local cache for no reason.
  */
+async function activeStoreId(
+  supabase: ReturnType<typeof createClient>,
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc('user_store_id')
+  if (error) return null
+  return (data as string | null) ?? null
+}
+
 export async function syncProducts(): Promise<SyncResult> {
   const supabase = createClient()
+  const storeId = await activeStoreId(supabase)
+  const at = new Date().toISOString()
+  const db = getDB()
+
+  if (!storeId) {
+    await db.transaction('rw', db.products, db.syncMeta, async () => {
+      await db.products.clear()
+      await db.syncMeta.put({ key: 'products', lastSyncAt: at, count: 0 })
+    })
+    return { synced: 0, at }
+  }
+
   const { data, error } = await supabase
     .from('products')
     .select('*')
     .eq('is_active', true)
+    .eq('store_id', storeId)
 
   if (error) throw error
   const rows = (data ?? []) as CachedProduct[]
-  const at = new Date().toISOString()
 
-  const db = getDB()
   await db.transaction('rw', db.products, db.syncMeta, async () => {
     await db.products.clear()
     if (rows.length > 0) await db.products.bulkAdd(rows)
@@ -52,13 +71,26 @@ export async function syncProducts(): Promise<SyncResult> {
 /** Full refresh of `categories`. Small table, always replaced wholesale. */
 export async function syncCategories(): Promise<SyncResult> {
   const supabase = createClient()
-  const { data, error } = await supabase.from('categories').select('*')
+  const storeId = await activeStoreId(supabase)
+  const at = new Date().toISOString()
+  const db = getDB()
+
+  if (!storeId) {
+    await db.transaction('rw', db.categories, db.syncMeta, async () => {
+      await db.categories.clear()
+      await db.syncMeta.put({ key: 'categories', lastSyncAt: at, count: 0 })
+    })
+    return { synced: 0, at }
+  }
+
+  const { data, error } = await supabase
+    .from('categories')
+    .select('*')
+    .eq('store_id', storeId)
 
   if (error) throw error
   const rows = (data ?? []) as CachedCategory[]
-  const at = new Date().toISOString()
 
-  const db = getDB()
   await db.transaction('rw', db.categories, db.syncMeta, async () => {
     await db.categories.clear()
     if (rows.length > 0) await db.categories.bulkAdd(rows)

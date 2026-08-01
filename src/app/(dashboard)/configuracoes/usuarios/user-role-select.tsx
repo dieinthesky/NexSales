@@ -11,23 +11,36 @@ interface UserRoleSelectProps {
   role: UserRole
   /** True if this row represents the currently logged-in admin. */
   isSelf: boolean
+  /** Only Master can promote to Admin. */
+  canGrantAdmin: boolean
 }
 
-/**
- * Inline role toggle. Optimistically dispatches the role change via a Server
- * Action and shows a toast for success/failure.
- *
- * Self-demotion is blocked client-side AND server-side (in the SQL function)
- * so the system never gets locked out of admins.
- */
-export function UserRoleSelect({ userId, role, isSelf }: UserRoleSelectProps) {
+export function UserRoleSelect({
+  userId,
+  role,
+  isSelf,
+  canGrantAdmin,
+}: UserRoleSelectProps) {
   const [isPending, startTransition] = useTransition()
 
-  function handleChange(next: UserRole) {
+  if (role === 'master') {
+    return (
+      <span className="inline-flex items-center rounded-md bg-amber-500/15 px-2 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300">
+        Master
+      </span>
+    )
+  }
+
+  function handleChange(next: Exclude<UserRole, 'master'>) {
     if (next === role) return
 
     if (isSelf && next !== 'admin') {
       toast.error('Você não pode remover o próprio acesso de administrador.')
+      return
+    }
+
+    if (next === 'admin' && !canGrantAdmin) {
+      toast.error('Somente a conta Master pode promover administradores.')
       return
     }
 
@@ -43,7 +56,31 @@ export function UserRoleSelect({ userId, role, isSelf }: UserRoleSelectProps) {
     })
   }
 
-  const isAdmin = role === 'admin'
+  const isAdminRole = role === 'admin'
+
+  // Store admin: only shows badge, cannot promote
+  if (!canGrantAdmin) {
+    return (
+      <span
+        className={
+          'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium ' +
+          (isAdminRole
+            ? 'bg-primary/10 text-primary'
+            : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200')
+        }
+      >
+        {isAdminRole ? (
+          <>
+            <ShieldCheck className="h-3.5 w-3.5" /> Admin
+          </>
+        ) : (
+          <>
+            <UserIcon className="h-3.5 w-3.5" /> Funcionário
+          </>
+        )}
+      </span>
+    )
+  }
 
   return (
     <div
@@ -54,12 +91,12 @@ export function UserRoleSelect({ userId, role, isSelf }: UserRoleSelectProps) {
       <button
         type="button"
         role="radio"
-        aria-checked={!isAdmin}
+        aria-checked={!isAdminRole}
         onClick={() => handleChange('employee')}
         disabled={isPending || isSelf}
         className={
           'inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ' +
-          (!isAdmin
+          (!isAdminRole
             ? 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
             : 'text-slate-400 hover:bg-slate-50 disabled:opacity-40 dark:text-slate-500 dark:hover:bg-slate-700/50')
         }
@@ -71,12 +108,12 @@ export function UserRoleSelect({ userId, role, isSelf }: UserRoleSelectProps) {
       <button
         type="button"
         role="radio"
-        aria-checked={isAdmin}
+        aria-checked={isAdminRole}
         onClick={() => handleChange('admin')}
         disabled={isPending}
         className={
           'inline-flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed ' +
-          (isAdmin
+          (isAdminRole
             ? 'bg-primary text-white shadow-sm'
             : 'text-slate-400 hover:bg-slate-50 disabled:opacity-40 dark:text-slate-500 dark:hover:bg-slate-700/50')
         }

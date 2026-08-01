@@ -14,6 +14,24 @@ function migrateSchema(db: NxDB): void {
   if (!products.has('image_url')) {
     db.exec(`ALTER TABLE products ADD COLUMN image_url TEXT`)
   }
+  if (!products.has('store_id')) {
+    db.exec(`ALTER TABLE products ADD COLUMN store_id TEXT`)
+  }
+
+  const categories = tableColumns(db, 'categories')
+  if (!categories.has('store_id')) {
+    db.exec(`ALTER TABLE categories ADD COLUMN store_id TEXT`)
+  }
+
+  const customers = tableColumns(db, 'customers')
+  if (!customers.has('store_id')) {
+    db.exec(`ALTER TABLE customers ADD COLUMN store_id TEXT`)
+  }
+
+  const sales = tableColumns(db, 'sales')
+  if (!sales.has('store_id')) {
+    db.exec(`ALTER TABLE sales ADD COLUMN store_id TEXT`)
+  }
 
   const saleItems = tableColumns(db, 'sale_items')
   if (!saleItems.has('item_description')) {

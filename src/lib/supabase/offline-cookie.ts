@@ -11,6 +11,7 @@ interface OfflineSessionPayload {
   userId: string
   email: string
   role: string
+  storeId?: string | null
   exp: number
 }
 
@@ -42,11 +43,13 @@ export function createOfflineSessionCookie(
   email: string,
   role: string,
   maxAgeSecs: number = MAX_AGE_SECONDS,
+  storeId?: string | null,
 ): { value: string; maxAge: number } {
   const payload: OfflineSessionPayload = {
     userId,
     email,
     role,
+    storeId: storeId ?? null,
     exp: Math.floor(Date.now() / 1000) + maxAgeSecs,
   }
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url')

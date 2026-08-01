@@ -39,10 +39,18 @@ export interface CreateCustomerResult {
 
 export async function createCustomer(input: CreateCustomerInput): Promise<CreateCustomerResult> {
   const supabase = await createClient()
+  const { data: storeId, error: storeError } = await supabase.rpc('user_store_id')
+  if (storeError || !storeId) {
+    return { error: 'Sua conta não está vinculada a uma loja.' }
+  }
 
   const { data, error } = await supabase
     .from('customers')
-    .insert({ full_name: input.fullName.trim(), phone: input.phone.trim() })
+    .insert({
+      full_name: input.fullName.trim(),
+      phone: input.phone.trim(),
+      store_id: storeId as string,
+    })
     .select()
     .single()
 

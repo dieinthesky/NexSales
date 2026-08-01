@@ -2,7 +2,7 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 
 export type PaymentMethod = 'cash' | 'credit' | 'debit' | 'pix' | 'fiado' | 'mixed'
 
-export type UserRole = 'admin' | 'employee'
+export type UserRole = 'master' | 'admin' | 'employee'
 
 export interface Database {
   public: {
@@ -11,16 +11,19 @@ export interface Database {
         Row: {
           id: string
           name: string
+          store_id: string
           created_at: string
         }
         Insert: {
           id?: string
           name: string
+          store_id: string
           created_at?: string
         }
         Update: {
           id?: string
           name?: string
+          store_id?: string
           created_at?: string
         }
         Relationships: []
@@ -39,6 +42,7 @@ export interface Database {
           is_active: boolean
           track_stock: boolean
           image_url: string | null
+          store_id: string
           created_at: string
           updated_at: string
         }
@@ -55,6 +59,7 @@ export interface Database {
           is_active?: boolean
           track_stock?: boolean
           image_url?: string | null
+          store_id: string
           created_at?: string
           updated_at?: string
         }
@@ -71,6 +76,7 @@ export interface Database {
           is_active?: boolean
           track_stock?: boolean
           image_url?: string | null
+          store_id?: string
           created_at?: string
           updated_at?: string
         }
@@ -90,6 +96,7 @@ export interface Database {
           full_name: string
           phone: string | null
           notes: string | null
+          store_id: string
           created_at: string
           updated_at: string
         }
@@ -98,6 +105,7 @@ export interface Database {
           full_name: string
           phone?: string | null
           notes?: string | null
+          store_id: string
           created_at?: string
           updated_at?: string
         }
@@ -106,6 +114,7 @@ export interface Database {
           full_name?: string
           phone?: string | null
           notes?: string | null
+          store_id?: string
           created_at?: string
           updated_at?: string
         }
@@ -118,6 +127,7 @@ export interface Database {
           amount: number
           notes: string | null
           recorded_by: string
+          store_id: string
           created_at: string
         }
         Insert: {
@@ -125,6 +135,7 @@ export interface Database {
           customer_id: string
           amount: number
           notes?: string | null
+          store_id: string
           recorded_by: string
           created_at?: string
         }
@@ -153,6 +164,7 @@ export interface Database {
           payment_method: PaymentMethod
           notes: string | null
           seller_id: string
+          store_id: string
           created_at: string
           client_uuid: string | null
           customer_id: string | null
@@ -163,6 +175,7 @@ export interface Database {
           payment_method: PaymentMethod
           notes?: string | null
           seller_id: string
+          store_id: string
           created_at?: string
           client_uuid?: string | null
           customer_id?: string | null
@@ -173,6 +186,7 @@ export interface Database {
           payment_method?: PaymentMethod
           notes?: string | null
           seller_id?: string
+          store_id?: string
           created_at?: string
           client_uuid?: string | null
           customer_id?: string | null
@@ -288,6 +302,54 @@ export interface Database {
         }
         Relationships: []
       }
+      stores: {
+        Row: {
+          id: string
+          name: string
+          slug: string
+          is_template: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          slug: string
+          is_template?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          slug?: string
+          is_template?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      store_members: {
+        Row: {
+          store_id: string
+          user_id: string
+          role: 'admin' | 'employee'
+          created_at: string
+        }
+        Insert: {
+          store_id: string
+          user_id: string
+          role?: 'admin' | 'employee'
+          created_at?: string
+        }
+        Update: {
+          store_id?: string
+          user_id?: string
+          role?: 'admin' | 'employee'
+          created_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           user_id: string
@@ -314,18 +376,21 @@ export interface Database {
           id: string
           email: string
           active: boolean
+          store_id: string
           created_at: string
         }
         Insert: {
           id?: string
           email: string
           active?: boolean
+          store_id: string
           created_at?: string
         }
         Update: {
           id?: string
           email?: string
           active?: boolean
+          store_id?: string
           created_at?: string
         }
         Relationships: []
@@ -416,6 +481,18 @@ export interface Database {
         }
         Returns: boolean
       }
+      is_master: {
+        Args: {
+          p_user_id?: string
+        }
+        Returns: boolean
+      }
+      user_store_id: {
+        Args: {
+          p_user_id?: string
+        }
+        Returns: string
+      }
       admin_list_users: {
         Args: Record<string, never>
         Returns: {
@@ -432,6 +509,21 @@ export interface Database {
         Args: {
           p_user_id: string
           p_role: UserRole
+        }
+        Returns: null
+      }
+      master_provision_store: {
+        Args: {
+          p_store_name: string
+          p_store_slug: string
+          p_owner_user_id: string
+          p_copy_catalog?: boolean
+        }
+        Returns: string
+      }
+      master_reset_store_operations: {
+        Args: {
+          p_store_id: string
         }
         Returns: null
       }

@@ -31,6 +31,7 @@ interface NavItem {
   label: string
   icon: LucideIcon
   adminOnly?: boolean
+  masterOnly?: boolean
   desktopOnly?: boolean
 }
 
@@ -61,6 +62,7 @@ const navSections: NavSection[] = [
     title: 'Administração',
     items: [
       { href: '/configuracoes/usuarios', label: 'Usuários', icon: Users, adminOnly: true },
+      { href: '/configuracoes/lojas', label: 'Lojas', icon: Store, masterOnly: true },
       { href: '/relatorios', label: 'Relatório de lucro', icon: BarChart3, adminOnly: true },
       { href: '/configuracoes/relatorio', label: 'Relatório por email', icon: Mail, adminOnly: true },
       { href: '/configuracoes/baixar', label: 'Baixar app', icon: MonitorDown, desktopOnly: true },
@@ -118,6 +120,9 @@ function isItemActive(href: string, pathname: string): boolean {
         !pathname.startsWith('/produtos/visita'))
     )
   }
+  if (href === '/configuracoes/lojas') {
+    return pathname.startsWith('/configuracoes/lojas')
+  }
   return pathname.startsWith(href)
 }
 
@@ -149,7 +154,8 @@ function NavList({ role, onNavigate, isMobile }: NavListProps) {
       ...section,
       items: section.items.filter(
         (item) =>
-          (!item.adminOnly || role === 'admin') &&
+          (!item.adminOnly || role === 'admin' || role === 'master') &&
+          (!item.masterOnly || role === 'master') &&
           (!item.desktopOnly || !isMobile)
       ),
     }))
@@ -252,12 +258,14 @@ function SidebarFooter({ role }: { role: UserRole }) {
             <span
               className={cn(
                 'inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1 ring-inset',
-                role === 'admin'
-                  ? 'bg-primary/10 text-primary/60 ring-primary/30'
-                  : 'bg-slate-700/50 text-slate-300 ring-slate-500/20'
+                role === 'master'
+                  ? 'bg-amber-500/15 text-amber-300 ring-amber-400/30'
+                  : role === 'admin'
+                    ? 'bg-primary/10 text-primary/60 ring-primary/30'
+                    : 'bg-slate-700/50 text-slate-300 ring-slate-500/20',
               )}
             >
-              {role === 'admin' ? 'Admin' : 'Funcionário'}
+              {role === 'master' ? 'Master' : role === 'admin' ? 'Admin' : 'Funcionário'}
             </span>
           </div>
         </div>

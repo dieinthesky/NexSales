@@ -12,12 +12,19 @@ export interface CurrentUser {
   id: string
   email: string | null
   role: UserRole
+  storeId: string | null
+  storeName: string | null
   firstName: string | null
   lastName: string | null
   /** Pretty name for UI (falls back to email username). */
   displayName: string
   /** Two-letter initials for avatars. */
   initials: string
+}
+
+function normalizeRole(role: string | null | undefined): UserRole {
+  if (role === 'master' || role === 'admin' || role === 'employee') return role
+  return 'employee'
 }
 
 /**
@@ -41,11 +48,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       global: {
-        // Do NOT clearTimeout inside this wrapper — Supabase auth.getUser() may
-        // issue multiple sequential fetches (e.g. token refresh then user check).
-        // Clearing the timer after the first fetch would leave the second without
-        // a deadline, causing 10-second hangs when offline. The outer finally{}
-        // block handles cleanup once the whole getUser() call settles.
         fetch: (url: RequestInfo | URL, init?: RequestInit) =>
           fetch(url, { ...init, signal: controller.signal }),
       },
@@ -68,8 +70,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   let user: Awaited<ReturnType<typeof supabaseWithTimeout.auth.getUser>>['data']['user'] = null
 
-  // In Electron the auth endpoint is unreachable from the Node.js process —
-  // skip getUser() entirely and resolve the session from the local cookie.
   if (process.env.ELECTRON_APP !== 'true') {
     try {
       const { data } = await supabaseWithTimeout.auth.getUser()
@@ -84,26 +84,42 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   }
 
   if (user) {
-    // Fetch role + profile in parallel using the regular client (already online if we got here).
     const supabase = await createClient()
-    const [{ data: roleRow }, { data: profileRow }] = await Promise.all([
+    const [{ data: roleRow }, { data: profileRow }, { data: membership }] = await Promise.all([
       supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle(),
       supabase
         .from('profiles')
         .select('first_name, last_name')
         .eq('user_id', user.id)
         .maybeSingle(),
+      supabase
+        .from('store_members')
+        .select('store_id')
+        .eq('user_id', user.id)
+        .maybeSingle(),
     ])
 
-    const role: UserRole = roleRow?.role ?? 'employee'
+    const role = normalizeRole(roleRow?.role)
     const firstName = profileRow?.first_name ?? null
     const lastName = profileRow?.last_name ?? null
     const email = user.email ?? null
+    const storeId = membership?.store_id ?? null
+    let storeName: string | null = null
+    if (storeId) {
+      const { data: storeRow } = await supabase
+        .from('stores')
+        .select('name')
+        .eq('id', storeId)
+        .maybeSingle()
+      storeName = storeRow?.name ?? null
+    }
 
     return {
       id: user.id,
       email,
       role,
+      storeId,
+      storeName,
       firstName,
       lastName,
       displayName: displayName({ firstName, lastName, email }),
@@ -111,9 +127,6 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
     }
   }
 
-  // No live Supabase session — check for an offline session cookie.
-  // Set after an offline login OR after every successful online login,
-  // so the app keeps working when the connection drops mid-session.
   const offlineCookie = cookieStore.get(OFFLINE_COOKIE_NAME)
   if (offlineCookie) {
     const session = readOfflineSession(offlineCookie.value)
@@ -122,9 +135,9 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
       return {
         id: session.userId,
         email,
-        role: (['admin', 'employee'] as UserRole[]).includes(session.role as UserRole)
-          ? (session.role as UserRole)
-          : 'employee',
+        role: normalizeRole(session.role),
+        storeId: session.storeId ?? null,
+        storeName: null,
         firstName: null,
         lastName: null,
         displayName: displayName({ firstName: null, lastName: null, email }),
@@ -136,9 +149,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return null
 })
 
+/** Admin da loja ou Master da plataforma. */
 export async function isAdmin(): Promise<boolean> {
   const user = await getCurrentUser()
-  return user?.role === 'admin'
+  return user?.role === 'admin' || user?.role === 'master'
+}
+
+export async function isMaster(): Promise<boolean> {
+  const user = await getCurrentUser()
+  return user?.role === 'master'
 }
 
 /**
@@ -157,6 +176,22 @@ export async function requireAuth(): Promise<CurrentUser> {
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
-  if (user.role !== 'admin') redirect('/vendas/nova')
+  if (user.role !== 'admin' && user.role !== 'master') redirect('/vendas/nova')
   return user
+}
+
+export async function requireMaster(): Promise<CurrentUser> {
+  const user = await getCurrentUser()
+  if (!user) redirect('/login')
+  if (user.role !== 'master') redirect('/vendas/nova')
+  return user
+}
+
+/** Store id da sessão; falha com erro amigável se o usuário não tiver loja. */
+export async function requireStoreId(): Promise<{ user: CurrentUser; storeId: string }> {
+  const user = await requireAuth()
+  if (!user.storeId) {
+    throw new Error('Usuário sem loja vinculada. Peça ao suporte para associar sua conta.')
+  }
+  return { user, storeId: user.storeId }
 }

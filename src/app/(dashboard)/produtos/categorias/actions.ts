@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { categorySchema } from '@/lib/validations/category.schema'
-import { isAdmin } from '@/lib/auth/roles'
+import { getCurrentUser, isAdmin } from '@/lib/auth/roles'
 
 export async function createCategory(name: string) {
   if (!(await isAdmin())) {
@@ -13,10 +13,15 @@ export async function createCategory(name: string) {
   const parsed = categorySchema.safeParse({ name })
   if (!parsed.success) return { error: parsed.error.issues[0].message }
 
+  const user = await getCurrentUser()
+  if (!user?.storeId) {
+    return { error: 'Sua conta não está vinculada a uma loja.' }
+  }
+
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('categories')
-    .insert({ name: parsed.data.name })
+    .insert({ name: parsed.data.name, store_id: user.storeId })
     .select('id, name, created_at')
     .single()
 

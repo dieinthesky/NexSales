@@ -26,7 +26,7 @@ interface AdminUserRow {
   email: string
   first_name: string | null
   last_name: string | null
-  role: 'admin' | 'employee'
+  role: 'master' | 'admin' | 'employee'
   created_at: string
   last_sign_in_at: string | null
 }
@@ -49,7 +49,8 @@ export default async function UsuariosPage() {
   const { data, error } = await supabase.rpc('admin_list_users')
 
   const users: AdminUserRow[] = (data ?? []) as AdminUserRow[]
-  const adminCount = users.filter((u) => u.role === 'admin').length
+  const canGrantAdmin = current.role === 'master'
+  const adminCount = users.filter((u) => u.role === 'admin' || u.role === 'master').length
 
   return (
     <div className="space-y-6">
@@ -59,7 +60,9 @@ export default async function UsuariosPage() {
             Usuários
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Gerencie os funcionários e administradores do sistema.
+            {canGrantAdmin
+              ? 'Gerencie lojas, donos e funcionários. Contas Master não aparecem para clientes.'
+              : 'Crie e gerencie os funcionários da sua loja.'}
           </p>
         </div>
         <CreateEmployeeDialog />
@@ -195,14 +198,17 @@ export default async function UsuariosPage() {
                           userId={u.user_id}
                           role={u.role}
                           isSelf={isSelf}
+                          canGrantAdmin={canGrantAdmin}
                         />
                       </TableCell>
                       <TableCell className="text-right pr-4">
-                        <UserActions
-                          userId={u.user_id}
-                          userName={name}
-                          isSelf={isSelf}
-                        />
+                        {u.role === 'master' && !canGrantAdmin ? null : (
+                          <UserActions
+                            userId={u.user_id}
+                            userName={name}
+                            isSelf={isSelf}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   )
@@ -213,8 +219,10 @@ export default async function UsuariosPage() {
         </div>
 
         <div className="px-4 py-3 border-t border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/3 text-xs text-slate-500 dark:text-slate-400">
-          Funcionários entram no sistema com o <strong className="text-slate-700 dark:text-slate-300">usuário</strong> e senha definidos aqui.
-          Promova a <strong className="text-slate-700 dark:text-slate-300">Administrador</strong> quando necessário.
+          Funcionários entram com o <strong className="text-slate-700 dark:text-slate-300">usuário</strong> e senha definidos aqui.
+          {canGrantAdmin
+            ? ' Só a conta Master pode criar ou promover outros administradores.'
+            : ' Como dono da loja, você só cria funcionários — não outras contas admin.'}
         </div>
       </Card>
 

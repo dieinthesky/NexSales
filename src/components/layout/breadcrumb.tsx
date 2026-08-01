@@ -9,6 +9,7 @@ const LABELS: Record<string, string> = {
   produtos: 'Produtos',
   categorias: 'Categorias',
   visita: 'Visita / Inventário',
+  lojas: 'Lojas',
   novo: 'Novo',
   vendas: 'Vendas',
   nova: 'Nova Venda',

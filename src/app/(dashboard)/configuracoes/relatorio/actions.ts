@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { isInternalEmail } from '@/lib/supabase/service'
-import { isAdmin } from '@/lib/auth/roles'
+import { getCurrentUser, isAdmin } from '@/lib/auth/roles'
 import { reportRecipientSchema } from '@/lib/validations/report-recipient.schema'
 import { getCashClose, todayLocalISO } from '@/lib/queries/cash-close'
 import { buildCashCloseEmail } from '@/lib/email/cash-close-email'
@@ -41,8 +41,15 @@ export async function addReportRecipient(formData: {
     return { error: 'Use um email real — usuários internos não recebem email.' }
   }
 
+  const user = await getCurrentUser()
+  if (!user?.storeId) {
+    return { error: 'Sua conta não está vinculada a uma loja.' }
+  }
+
   const supabase = await createClient()
-  const { error } = await supabase.from('report_recipients').insert({ email })
+  const { error } = await supabase
+    .from('report_recipients')
+    .insert({ email, store_id: user.storeId })
 
   if (error) {
     if (error.code === '23505' || error.message.toLowerCase().includes('unique')) {

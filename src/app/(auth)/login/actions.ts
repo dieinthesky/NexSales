@@ -25,7 +25,9 @@ async function postLoginPath(): Promise<string> {
     .eq('user_id', user.id)
     .maybeSingle()
 
-  return roleRow?.role === 'admin' ? '/dashboard' : '/vendas/nova'
+  return roleRow?.role === 'admin' || roleRow?.role === 'master'
+    ? '/dashboard'
+    : '/vendas/nova'
 }
 
 /** True when the error indicates no network, not a credential failure. */
@@ -120,13 +122,27 @@ export async function signIn(usernameOrEmail: string, password: string) {
         .maybeSingle()
 
       const role = roleRow?.role ?? 'employee'
-      redirectPath = role === 'admin' ? '/dashboard' : '/vendas/nova'
+      redirectPath = role === 'admin' || role === 'master' ? '/dashboard' : '/vendas/nova'
+
+      const { data: membership } = await supabase
+        .from('store_members')
+        .select('store_id')
+        .eq('user_id', data.user.id)
+        .maybeSingle()
+      const storeId = membership?.store_id ?? null
+
       saveOfflineCredentials(email, password, data.user.id, role)
 
       // 7 days — refreshed on every online login so the user can navigate offline
       // without being kicked to /login just because supabase.auth.getUser() times out.
       const ONLINE_OFFLINE_TTL = 7 * 24 * 60 * 60
-      const session = createOfflineSessionCookie(data.user.id, email, role, ONLINE_OFFLINE_TTL)
+      const session = createOfflineSessionCookie(
+        data.user.id,
+        email,
+        role,
+        ONLINE_OFFLINE_TTL,
+        storeId,
+      )
       const cookieStore = await cookies()
       cookieStore.set(OFFLINE_COOKIE_NAME, session.value, {
         httpOnly: true,
