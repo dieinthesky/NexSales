@@ -43,6 +43,7 @@ export function getCustomerDetails(id: string): CustomerDetails | null {
     payment_method: string
     notes: string | null
     seller_id: string
+    store_id: string
     created_at: string
     client_uuid: string | null
     customer_id: string | null
@@ -55,7 +56,7 @@ export function getCustomerDetails(id: string): CustomerDetails | null {
 
   const rawSales = db
     .prepare(
-      `SELECT s.id, s.total_amount, s.payment_method, s.notes, s.seller_id, s.created_at,
+      `SELECT s.id, s.total_amount, s.payment_method, s.notes, s.seller_id, s.store_id, s.created_at,
               s.client_uuid, s.customer_id,
               si.id AS item_id, si.quantity, si.unit_price, si.subtotal,
               p.name AS prod_name
@@ -77,6 +78,7 @@ export function getCustomerDetails(id: string): CustomerDetails | null {
         payment_method: row.payment_method as Sale['payment_method'],
         notes: row.notes,
         seller_id: row.seller_id,
+        store_id: row.store_id,
         created_at: row.created_at,
         client_uuid: row.client_uuid,
         customer_id: row.customer_id,
