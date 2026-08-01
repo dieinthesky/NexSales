@@ -22,7 +22,7 @@ export async function createCategory(name: string) {
   const { data, error } = await supabase
     .from('categories')
     .insert({ name: parsed.data.name, store_id: user.storeId })
-    .select('id, name, created_at')
+    .select('id, name, store_id, created_at')
     .single()
 
   if (error) {
