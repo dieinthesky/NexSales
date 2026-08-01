@@ -366,11 +366,15 @@ create policy "store_admin_report_recipients" on public.report_recipients
   using (public.is_store_admin(store_id) or public.is_master())
   with check (public.is_store_admin(store_id) or public.is_master());
 
--- Lista usuários da mesma loja (master vê todos não-master + masters)
+-- Lista usuários da mesma loja (master vê todos; store admin só a loja)
+drop function if exists public.admin_list_users();
+
 create or replace function public.admin_list_users()
 returns table (
   user_id uuid,
   email text,
+  first_name text,
+  last_name text,
   role public.user_role,
   created_at timestamptz,
   last_sign_in_at timestamptz
@@ -390,11 +394,14 @@ begin
     select
       u.id as user_id,
       u.email::text,
+      p.first_name,
+      p.last_name,
       coalesce(r.role, 'employee'::public.user_role) as role,
       u.created_at,
       u.last_sign_in_at
     from auth.users u
     left join public.user_roles r on r.user_id = u.id
+    left join public.profiles p on p.user_id = u.id
     where
       case
         when public.is_master() then true
@@ -409,3 +416,5 @@ begin
     order by u.created_at desc;
 end;
 $$;
+
+grant execute on function public.admin_list_users() to authenticated;
