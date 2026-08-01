@@ -19,6 +19,27 @@ function canUseCamera(): boolean {
   )
 }
 
+async function preferContinuousFocus(root: HTMLElement) {
+  try {
+    const video = root.querySelector('video')
+    const stream = video?.srcObject
+    if (!(stream instanceof MediaStream)) return
+    const track = stream.getVideoTracks()[0]
+    if (!track) return
+    const caps = track.getCapabilities?.() as MediaTrackCapabilities & {
+      focusMode?: string[]
+    }
+    if (caps?.focusMode?.includes('continuous')) {
+      await track.applyConstraints({
+        // Safari/Chrome: melhora leitura de EAN em produtos próximos
+        advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet],
+      })
+    }
+  } catch {
+    // aparelho sem suporte — segue sem foco contínuo
+  }
+}
+
 export function BarcodeCameraScanner({
   open,
   onClose,
@@ -35,6 +56,7 @@ export function BarcodeCameraScanner({
   onDetectRef.current = onDetect
   const [error, setError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const [hint, setHint] = useState('Aproxime o código e espere o bip…')
 
   const stop = useCallback(async () => {
     const scanner = scannerRef.current
@@ -60,6 +82,7 @@ export function BarcodeCameraScanner({
     if (!open) {
       void stop()
       setError(null)
+      setHint('Aproxime o código e espere o bip…')
       return
     }
 
@@ -75,7 +98,6 @@ export function BarcodeCameraScanner({
       try {
         const { Html5Qrcode, Html5QrcodeSupportedFormats } = await import('html5-qrcode')
 
-        // Limpa DOM residual se reabrir.
         hostRef.current.innerHTML = ''
         const readerId = 'visita-barcode-reader'
         const mount = document.createElement('div')
@@ -93,33 +115,50 @@ export function BarcodeCameraScanner({
             Html5QrcodeSupportedFormats.CODE_39,
             Html5QrcodeSupportedFormats.QR_CODE,
           ],
+          // Usa BarcodeDetector nativo quando existir (Chrome); no Safari cai no ZXing.
+          useBarCodeDetectorIfSupported: true,
           verbose: false,
         })
         scannerRef.current = scanner
 
+        /**
+         * Sem `qrbox`: o decoder lê o frame inteiro.
+         * O retângulo verde é só guia visual — códigos de barras 1D falham muito
+         * quando a lib corta só o miolo da tela.
+         */
         await scanner.start(
-          { facingMode: 'environment' },
           {
-            fps: 8,
-            qrbox: (viewW, viewH) => {
-              const width = Math.floor(Math.min(viewW * 0.88, 360))
-              const height = Math.floor(Math.min(viewH * 0.32, 160))
-              return { width, height }
-            },
-            aspectRatio: 1.333,
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          {
+            fps: 20,
             disableFlip: false,
+            aspectRatio: 1.777,
+            videoConstraints: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
           },
           (decoded) => {
             const value = decoded?.trim()
             if (!value) return
             const now = Date.now()
-            if (value === lastCodeRef.current && now - lastAtRef.current < 2500) return
+            if (value === lastCodeRef.current && now - lastAtRef.current < 1800) return
             lastCodeRef.current = value
             lastAtRef.current = now
+            setHint(`Lido: ${value}`)
+            try {
+              navigator.vibrate?.(40)
+            } catch {
+              // ignore
+            }
             onDetectRef.current(value)
           },
           () => {
-            // frame sem código — ok
+            // frame sem código
           },
         )
 
@@ -127,8 +166,14 @@ export function BarcodeCameraScanner({
           await stop()
           return
         }
+
+        if (hostRef.current) {
+          await preferContinuousFocus(hostRef.current)
+        }
+
         setReady(true)
         setError(null)
+        setHint('Encaixe o código na faixa — a leitura usa a tela toda')
       } catch (err) {
         const message = err instanceof Error ? err.message : ''
         if (/NotAllowedError|Permission|denied/i.test(message)) {
@@ -174,7 +219,20 @@ export function BarcodeCameraScanner({
       </div>
 
       <div className="relative mx-4 flex-1 overflow-hidden rounded-2xl bg-slate-900">
-        <div ref={hostRef} className="h-full w-full [&_video]:h-full [&_video]:w-full [&_video]:object-cover" />
+        <div
+          ref={hostRef}
+          className="h-full w-full [&_img]:hidden [&_video]:h-full [&_video]:w-full [&_video]:object-cover"
+        />
+
+        {/* Guia visual apenas — não limita a área de decode */}
+        {ready && !error && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="relative h-28 w-[90%] max-w-md rounded-xl border-2 border-emerald-400/90 shadow-[0_0_0_9999px_rgba(0,0,0,0.28)]">
+              <div className="absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-emerald-300/70" />
+            </div>
+          </div>
+        )}
+
         {!ready && !error && (
           <div className="absolute inset-0 flex items-center justify-center text-sm text-white/80">
             Abrindo câmera…
@@ -188,8 +246,10 @@ export function BarcodeCameraScanner({
           <p>{error}</p>
         </div>
       ) : (
-        <p className="px-4 py-3 text-center text-xs text-white/60">
-          No iPhone, aceite o acesso à câmera quando o Safari pedir. Pode fechar e digitar se preferir.
+        <p className="px-4 py-3 text-center text-xs text-white/70">
+          {hint}
+          <br />
+          Dica: aproxime ~15 cm, deixe o código reto e com boa luz.
         </p>
       )}
 
