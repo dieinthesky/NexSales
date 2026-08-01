@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { ArrowLeft, Printer, MessageCircle, Copy } from 'lucide-react'

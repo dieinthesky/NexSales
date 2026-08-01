@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
