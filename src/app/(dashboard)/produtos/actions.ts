@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { productSchema } from '@/lib/validations/product.schema'
-import { lookupExternalBarcode, type BarcodeSource } from '@/lib/barcode/lookup'
+import {
+  lookupExternalBarcode,
+  lookupExternalProductImage,
+  type BarcodeSource,
+} from '@/lib/barcode/lookup'
 import { isAdmin } from '@/lib/auth/roles'
 
 export type BarcodeLookupResult =
@@ -81,12 +85,16 @@ export async function lookupProductByBarcode(
       if (cached.source === 'not_found' || !cached.name) {
         return { status: 'not_found' }
       }
+
+      // Cache antigo não guarda foto — busca imagem no OFF sem invalidar o nome.
+      const imageUrl = await lookupExternalProductImage(trimmed)
+
       return {
         status: 'found_external',
         source: cached.source,
         name: cached.name,
         description: cached.description,
-        imageUrl: null,
+        imageUrl,
       }
     }
 
@@ -173,6 +181,51 @@ async function resolveProductImageUrl(
   if (removeImage) return { url: null }
   if (externalUrl) return { url: externalUrl }
   return { url: currentUrl }
+}
+
+/**
+ * Busca foto externa (Open Food Facts etc.) pelo código e grava em products.image_url.
+ * Usado para produtos já cadastrados sem foto.
+ */
+export async function fetchProductImage(productId: string): Promise<{
+  imageUrl?: string | null
+  error?: string
+}> {
+  if (!(await isAdmin())) {
+    return { error: 'Apenas administradores podem atualizar foto.' }
+  }
+
+  const supabase = await createClient()
+  const { data: product, error } = await supabase
+    .from('products')
+    .select('id, code, image_url')
+    .eq('id', productId)
+    .maybeSingle()
+
+  if (error || !product) return { error: 'Produto não encontrado.' }
+  if (product.image_url) return { imageUrl: product.image_url }
+
+  const imageUrl = await lookupExternalProductImage(product.code)
+  if (!imageUrl) {
+    return { error: 'Nenhuma foto encontrada para este código.' }
+  }
+
+  const { error: updateError } = await supabase
+    .from('products')
+    .update({ image_url: imageUrl })
+    .eq('id', productId)
+
+  if (updateError) {
+    return {
+      error:
+        'Não foi possível salvar a foto. Rode o SQL de product-images no Supabase.',
+    }
+  }
+
+  revalidatePath('/produtos')
+  revalidatePath(`/produtos/${productId}`)
+  revalidatePath('/vendas/nova')
+  return { imageUrl }
 }
 
 export async function createProduct(formData: FormData) {

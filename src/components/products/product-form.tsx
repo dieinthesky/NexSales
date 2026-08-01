@@ -25,7 +25,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { productSchema, type ProductFormData } from '@/lib/validations/product.schema'
-import { lookupProductByBarcode } from '@/app/(dashboard)/produtos/actions'
+import {
+  lookupProductByBarcode,
+  fetchProductImage,
+} from '@/app/(dashboard)/produtos/actions'
 import type { Category, Product } from '@/types/database'
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -154,6 +157,22 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
       codeInputRef.current?.focus()
     }
   }, [isNew])
+
+  // Produto já cadastrado sem foto: tenta buscar no Open Food Facts automaticamente
+  useEffect(() => {
+    if (!product?.id || product.image_url || !/^\d{8,14}$/.test(product.code)) return
+    let cancelled = false
+    void fetchProductImage(product.id).then((result) => {
+      if (cancelled || !result.imageUrl) return
+      setImagePreview(result.imageUrl)
+      setImageUrl(result.imageUrl)
+      setRemoveImage(false)
+      toast.success('Foto encontrada e salva no produto')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [product?.id, product?.image_url, product?.code])
 
   function looksLikeBarcode(code: string): boolean {
     return /^\d{8,14}$/.test(code)
@@ -377,16 +396,42 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
                 <p className="text-[11px] text-slate-400">
                   JPG/PNG/WEBP até 5 MB. No bipe, se achar foto na base, já preenche.
                 </p>
-                {imagePreview && (
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Remover foto
-                  </button>
-                )}
+                <div className="flex flex-wrap gap-3">
+                  {product && !imagePreview && /^\d{8,14}$/.test(product.code) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startTransition(async () => {
+                          const result = await fetchProductImage(product.id)
+                          if (result.error) {
+                            toast.error(result.error)
+                            return
+                          }
+                          if (result.imageUrl) {
+                            setImagePreview(result.imageUrl)
+                            setImageUrl(result.imageUrl)
+                            setRemoveImage(false)
+                            toast.success('Foto encontrada!')
+                          }
+                        })
+                      }}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-[#234e7a] hover:underline"
+                    >
+                      <ImagePlus className="h-3.5 w-3.5" />
+                      Buscar foto pelo código
+                    </button>
+                  )}
+                  {imagePreview && (
+                    <button
+                      type="button"
+                      onClick={clearImage}
+                      className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remover foto
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>

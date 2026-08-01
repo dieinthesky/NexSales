@@ -179,6 +179,9 @@ function isLikelyBarcode(code: string): boolean {
  * Try external barcode databases in order:
  *   Cosmos (Brazil) → Open Food Facts (worldwide, food) → UPCitemdb (worldwide, general)
  * Returns the first successful result, or null if nothing matched.
+ *
+ * Importante: se o Cosmos achar o produto sem foto, ainda consulta o Open Food Facts
+ * só para pegar a imagem (caso clássico no Brasil).
  */
 export async function lookupExternalBarcode(
   code: string,
@@ -187,7 +190,13 @@ export async function lookupExternalBarcode(
   if (!trimmed || !isLikelyBarcode(trimmed)) return null
 
   const fromCosmos = await lookupCosmos(trimmed)
-  if (fromCosmos) return fromCosmos
+  if (fromCosmos) {
+    if (!fromCosmos.imageUrl) {
+      const fromOff = await lookupOpenFoodFacts(trimmed)
+      if (fromOff?.imageUrl) fromCosmos.imageUrl = fromOff.imageUrl
+    }
+    return fromCosmos
+  }
 
   const fromOff = await lookupOpenFoodFacts(trimmed)
   if (fromOff) return fromOff
@@ -196,4 +205,18 @@ export async function lookupExternalBarcode(
   if (fromUpc) return fromUpc
 
   return null
+}
+
+/** Só a URL da foto (OFF → UPC). Usado para enriquecer produto já cadastrado. */
+export async function lookupExternalProductImage(
+  code: string,
+): Promise<string | null> {
+  const trimmed = code.trim()
+  if (!trimmed || !isLikelyBarcode(trimmed)) return null
+
+  const fromOff = await lookupOpenFoodFacts(trimmed)
+  if (fromOff?.imageUrl) return fromOff.imageUrl
+
+  const fromUpc = await lookupUpcItemDb(trimmed)
+  return fromUpc?.imageUrl ?? null
 }
