@@ -48,11 +48,11 @@ export function Cart({
   if (items.length === 0) {
     if (variant === 'cashier') {
       return (
-        <div className="flex h-full min-h-[160px] flex-col items-center justify-center bg-[#0b1220] px-6 text-center">
-          <ShoppingCart className="mb-3 h-10 w-10 text-white/20" />
-          <p className="text-sm font-semibold text-white/45">Nenhum item ainda</p>
-          <p className="mt-1 text-xs text-white/30">
-            Use o campo de busca à esquerda
+        <div className="flex h-full min-h-[160px] flex-col items-center justify-center bg-slate-50 px-6 text-center">
+          <ShoppingCart className="mb-3 h-10 w-10 text-slate-300" />
+          <p className="text-sm font-semibold text-slate-500">Cupom vazio</p>
+          <p className="mt-1 text-xs text-slate-400">
+            Bipe ou digite o produto à esquerda
           </p>
         </div>
       )
@@ -67,14 +67,10 @@ export function Cart({
 
   if (variant === 'cashier') {
     return (
-      <div className="flex h-full min-h-0 flex-col bg-[#0b1220] text-white">
-        <div className="grid shrink-0 grid-cols-[40px_minmax(0,1fr)_56px_88px_96px_36px] gap-1 border-b border-white/10 px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-white/35 sm:grid-cols-[48px_minmax(0,1fr)_64px_96px_104px_40px] sm:gap-2 sm:px-3 sm:text-[11px]">
-          <span>#</span>
-          <span>Produto</span>
-          <span className="text-center">Qtd</span>
-          <span className="text-right">Unit.</span>
-          <span className="text-right">Total</span>
-          <span />
+      <div className="flex h-full min-h-0 flex-col bg-white text-slate-900">
+        <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_auto] gap-2 border-b border-slate-200 bg-slate-100 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 sm:px-4">
+          <span>Descrição</span>
+          <span className="text-right">Qtd / Valores</span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {[...items].reverse().map((item, reverseIndex) => {
@@ -87,114 +83,118 @@ export function Cart({
             return (
               <div
                 key={item.product.id}
-                className={`grid grid-cols-[40px_minmax(0,1fr)_56px_88px_96px_36px] items-center gap-1 border-b border-white/5 px-2 py-2 sm:grid-cols-[48px_minmax(0,1fr)_64px_96px_104px_40px] sm:gap-2 sm:px-3 sm:py-2.5 ${
-                  isLatest ? 'bg-emerald-500/15' : 'hover:bg-white/[0.03]'
+                className={`border-b border-slate-100 px-3 py-3 sm:px-4 ${
+                  isLatest ? 'bg-emerald-50' : 'hover:bg-slate-50'
                 }`}
               >
-                <span className="tabular-nums text-sm text-white/35">{index}</span>
-                <div className="min-w-0">
-                  <p
-                    className={`truncate font-semibold ${
-                      isLatest ? 'text-base text-white' : 'text-sm text-white/90'
-                    }`}
-                  >
-                    {item.product.name}
-                  </p>
-                  {!item.product.track_stock && (
-                    <input
-                      type="text"
-                      placeholder="Descrição do item..."
-                      value={item.itemDescription ?? ''}
-                      onChange={(e) => onUpdateDescription(item.product.id, e.target.value)}
-                      className="mt-1 w-full rounded border border-white/10 bg-white/5 px-2 py-1 text-xs text-white/80 placeholder:text-white/30 focus:border-emerald-400/50 focus:outline-none"
-                    />
-                  )}
-                  <p className="mt-0.5 truncate text-[11px] text-white/35">
-                    Cód. {item.product.code}
-                  </p>
-                </div>
-                <div className="flex items-center justify-center gap-0.5">
-                  <button
-                    type="button"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-30"
-                    onClick={() => onUpdateQty(item.product.id, item.quantity - 1)}
-                    disabled={item.quantity <= 1}
-                    aria-label="Diminuir"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="w-6 text-center text-sm font-bold tabular-nums text-white">
-                    {item.quantity}
+                <div className="flex items-start gap-2">
+                  <span className="mt-0.5 w-7 shrink-0 text-xs font-bold tabular-nums text-slate-400">
+                    {String(index).padStart(2, '0')}
                   </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold leading-snug text-slate-900 sm:text-[15px]">
+                      {item.product.name}
+                    </p>
+                    {!item.product.track_stock && (
+                      <input
+                        type="text"
+                        placeholder="Descrição do item..."
+                        value={item.itemDescription ?? ''}
+                        onChange={(e) => onUpdateDescription(item.product.id, e.target.value)}
+                        className="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#234e7a] focus:outline-none"
+                      />
+                    )}
+                    <p className="mt-0.5 text-[11px] font-medium text-slate-500">
+                      Cód. {item.product.code}
+                    </p>
+                  </div>
                   <button
                     type="button"
-                    className="inline-flex h-7 w-7 items-center justify-center rounded text-white/50 hover:bg-white/10 hover:text-white disabled:opacity-30"
-                    onClick={() => onUpdateQty(item.product.id, item.quantity + 1)}
-                    disabled={
-                      item.product.track_stock &&
-                      item.quantity >= item.product.stock_quantity
-                    }
-                    aria-label="Aumentar"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-red-500 hover:bg-red-50"
+                    onClick={() => onRemove(item.product.id)}
+                    aria-label={`Remover ${item.product.name}`}
                   >
-                    <Plus className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="text-right">
-                  {isEditing ? (
-                    <div className="flex items-center justify-end gap-1">
-                      <Input
-                        ref={inputRef}
-                        type="text"
-                        inputMode="decimal"
-                        value={editRaw}
-                        onChange={(e) =>
-                          setEditRaw(e.target.value.replace(/[^\d,.]/g, ''))
-                        }
-                        onBlur={() => commitEdit(item.product.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') commitEdit(item.product.id)
-                          if (e.key === 'Escape') setEditingId(null)
-                        }}
-                        className="h-7 w-20 border-emerald-400/40 bg-white/10 px-1.5 text-xs text-white"
-                      />
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault()
-                          commitEdit(item.product.id)
-                        }}
-                        className="text-emerald-400"
-                        aria-label="Confirmar preço"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ) : (
+
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-9">
+                  <div className="flex items-center gap-0.5">
                     <button
                       type="button"
-                      onClick={() => startEdit(item)}
-                      className="inline-flex items-center gap-1 text-sm tabular-nums text-white/65 hover:text-emerald-300"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                      onClick={() => onUpdateQty(item.product.id, item.quantity - 1)}
+                      disabled={item.quantity <= 1}
+                      aria-label="Diminuir"
                     >
-                      {formatCurrency(effectivePrice)}
-                      <Pencil className="h-3 w-3 opacity-50" />
+                      <Minus className="h-3.5 w-3.5" />
                     </button>
-                  )}
+                    <span className="w-8 text-center text-sm font-black tabular-nums">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-200 text-slate-600 hover:bg-slate-100 disabled:opacity-30"
+                      onClick={() => onUpdateQty(item.product.id, item.quantity + 1)}
+                      disabled={
+                        item.product.track_stock &&
+                        item.quantity >= item.product.stock_quantity
+                      }
+                      aria-label="Aumentar"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3 text-sm">
+                    {isEditing ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          ref={inputRef}
+                          type="text"
+                          inputMode="decimal"
+                          value={editRaw}
+                          onChange={(e) =>
+                            setEditRaw(e.target.value.replace(/[^\d,.]/g, ''))
+                          }
+                          onBlur={() => commitEdit(item.product.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') commitEdit(item.product.id)
+                            if (e.key === 'Escape') setEditingId(null)
+                          }}
+                          className="h-8 w-24 border-emerald-400 px-1.5 text-xs"
+                        />
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            commitEdit(item.product.id)
+                          }}
+                          className="text-emerald-600"
+                          aria-label="Confirmar preço"
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(item)}
+                        className="inline-flex items-center gap-1 tabular-nums text-slate-600 hover:text-[#234e7a]"
+                      >
+                        {formatCurrency(effectivePrice)}
+                        <Pencil className="h-3 w-3 opacity-50" />
+                      </button>
+                    )}
+                    <span
+                      className={`font-black tabular-nums ${
+                        isLatest ? 'text-emerald-700' : 'text-slate-900'
+                      }`}
+                    >
+                      {formatCurrency(lineTotal)}
+                    </span>
+                  </div>
                 </div>
-                <span
-                  className={`text-right font-bold tabular-nums ${
-                    isLatest ? 'text-base text-emerald-300' : 'text-sm text-white'
-                  }`}
-                >
-                  {formatCurrency(lineTotal)}
-                </span>
-                <button
-                  type="button"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded text-red-400/80 hover:bg-red-500/15 hover:text-red-300"
-                  onClick={() => onRemove(item.product.id)}
-                  aria-label={`Remover ${item.product.name}`}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
             )
           })}

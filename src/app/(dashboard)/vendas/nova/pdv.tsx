@@ -464,69 +464,73 @@ export function PDV({ avulsoProduct }: PDVProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- handlers close over latest state intentionally
   }, [checkoutOpen, canSubmit, cartItems.length, avulsoProduct, missingPay, informedPays])
 
+  const isBusy = cartItems.length > 0
   const lastUnit = lastItem
     ? lastItem.customPrice ?? lastItem.product.sale_price
     : 0
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#0f172a] text-white font-[family-name:var(--font-poppins),sans-serif]">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-[#111827] px-3 py-2.5 sm:px-5">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#e8edf3] text-slate-900 font-[family-name:var(--font-poppins),sans-serif]">
+      {/* Top bar */}
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-300 bg-[#1e3a5f] px-3 py-2 text-white sm:px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-white/55 hover:bg-white/5 hover:text-white"
+            className="inline-flex items-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium text-white/70 hover:bg-white/10 hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Sair
           </Link>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-white sm:text-base">CaixaDoBairro</p>
-            <p className="truncate text-[11px] text-white/40">
-              {cartItems.length === 0
-                ? '1) Digite ou bipe o produto'
-                : '2) Confira os itens · 3) Encerrar venda'}
-            </p>
+            <p className="truncate text-sm font-bold sm:text-base">CaixaDoBairro</p>
+            <p className="truncate text-[11px] text-blue-100/70">PDV do bairro</p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
-          {avulsoProduct && (
-            <button
-              type="button"
-              onClick={handleAddAvulso}
-              className="hidden items-center gap-1.5 rounded-md border border-white/15 px-2.5 py-1.5 text-xs font-medium text-white/70 hover:bg-white/5 sm:inline-flex"
-            >
-              Avulso
-              <kbd className="rounded bg-white/10 px-1 font-mono text-[10px] text-white/45">F4</kbd>
-            </button>
-          )}
-          <span className="font-mono text-sm tabular-nums text-white/50">{clock || '--:--:--'}</span>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
+              isBusy
+                ? 'bg-amber-400 text-amber-950'
+                : 'bg-emerald-400 text-emerald-950'
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                isBusy ? 'animate-pulse bg-amber-900' : 'bg-emerald-900'
+              }`}
+            />
+            {isBusy ? 'Caixa ocupado' : 'Caixa aberto'}
+          </span>
+          <span className="font-mono text-sm font-semibold tabular-nums text-blue-100">
+            {clock || '--:--:--'}
+          </span>
         </div>
       </header>
 
       {offlineSale && (
-        <div className="relative shrink-0 border-b border-amber-400/30 bg-amber-500/15 px-4 py-3">
+        <div className="relative shrink-0 border-b border-amber-400/40 bg-amber-100 px-4 py-3 text-amber-950">
           <button
             type="button"
             onClick={() => setOfflineSale(null)}
             aria-label="Fechar"
-            className="absolute right-3 top-3 text-amber-200/70 hover:text-amber-100"
+            className="absolute right-3 top-3 text-amber-700/70 hover:text-amber-900"
           >
             <X className="h-4 w-4" />
           </button>
-          <div className="flex items-center gap-2 text-amber-100">
+          <div className="flex items-center gap-2">
             <CloudOff className="h-5 w-5" />
             <p className="font-semibold">Venda salva offline</p>
           </div>
-          <p className="mt-1 text-sm text-amber-100/70">
+          <p className="mt-1 text-sm text-amber-900/70">
             Recibo provisório — sobe sozinho quando a internet voltar.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {offlineSale.items.slice(0, 4).map((item, idx) => (
-              <span key={idx} className="rounded bg-black/20 px-2 py-1 text-xs text-amber-50">
+              <span key={idx} className="rounded bg-amber-200/80 px-2 py-1 text-xs">
                 {item.quantity}× {item.name}
               </span>
             ))}
-            <span className="rounded bg-black/30 px-2 py-1 text-xs font-semibold text-white">
+            <span className="rounded bg-amber-900 px-2 py-1 text-xs font-semibold text-amber-50">
               {formatCurrency(offlineSale.total)} · {offlineSale.paymentLabel}
             </span>
           </div>
@@ -534,7 +538,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
             onClick={handlePrintOffline}
             variant="outline"
             size="sm"
-            className="mt-3 border-amber-300/40 bg-transparent text-amber-50 hover:bg-amber-500/20"
+            className="mt-3 border-amber-700/30 bg-transparent text-amber-950 hover:bg-amber-200"
           >
             <Printer className="h-4 w-4 mr-1.5" />
             Imprimir recibo
@@ -542,86 +546,107 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {/* Step 1: search first — always obvious */}
-          <div className="shrink-0 border-b border-white/10 bg-[#111827] px-3 py-3 sm:px-5">
-            <ProductSearch onAdd={handleAddItem} variant="cashier" />
-            <p className="mt-2 text-[12px] text-white/40">
-              Digite o nome ou bipe o código → Enter → confirme a quantidade → Enter
-            </p>
-          </div>
+      {/* Banner: item atual */}
+      <div className="shrink-0 bg-[#234e7a] px-3 py-3 text-white sm:px-5 sm:py-4">
+        {lastItem ? (
+          <p className="line-clamp-2 text-xl font-black uppercase leading-tight tracking-wide sm:text-3xl lg:text-4xl">
+            {lastItem.quantity.toLocaleString('pt-BR')} X {lastItem.product.name}
+          </p>
+        ) : (
+          <p className="text-xl font-bold text-white/70 sm:text-3xl">Aguardando produto…</p>
+        )}
+      </div>
 
-          {/* Last item highlight */}
-          <div className="shrink-0 border-b border-white/10 px-3 py-4 sm:px-5">
-            {lastItem ? (
-              <div className="flex gap-4">
+      {/* Corpo: foto | campos | cupom */}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-3 lg:flex-row lg:gap-4 lg:p-4">
+        {/* Esquerda + meio */}
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 sm:flex-row">
+            {/* Foto */}
+            <div className="flex shrink-0 justify-center sm:w-[220px] lg:w-[260px]">
+              {lastItem ? (
                 <PdvProductArt
                   name={lastItem.product.name}
-                  className="h-24 w-24 shrink-0 sm:h-32 sm:w-32"
+                  className="h-44 w-full max-w-[260px] rounded-2xl sm:h-full sm:min-h-[220px]"
                 />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-400/80">
-                    Último item adicionado
+              ) : (
+                <div className="flex h-44 w-full max-w-[260px] items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 bg-white text-center text-sm font-semibold text-slate-400 sm:h-full sm:min-h-[220px]">
+                  Foto do
+                  <br />
+                  produto
+                </div>
+              )}
+            </div>
+
+            {/* Campos */}
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4">
+                <ProductSearch onAdd={handleAddItem} variant="cashier" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Quantidade
                   </p>
-                  <p className="mt-1 line-clamp-2 text-2xl font-bold leading-tight text-white sm:text-3xl">
-                    {lastItem.quantity}× {lastItem.product.name}
+                  <p className="mt-1 text-3xl font-black tabular-nums text-slate-900">
+                    {lastItem ? lastItem.quantity : '—'}
                   </p>
-                  <p className="mt-2 text-sm text-white/45">Cód. {lastItem.product.code}</p>
-                  <p className="mt-3 text-2xl font-bold tabular-nums text-emerald-300">
-                    {formatCurrency(lastLineTotal)}
-                    <span className="ml-2 text-sm font-medium text-white/35">
-                      ({lastItem.quantity} × {formatCurrency(lastUnit)})
-                    </span>
+                </div>
+                <div className="rounded-xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    Valor unitário
+                  </p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-slate-900 sm:text-3xl">
+                    {lastItem ? formatCurrency(lastUnit) : '—'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-3 shadow-sm ring-1 ring-emerald-200">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700/80">
+                    Valor total
+                  </p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-emerald-800 sm:text-3xl">
+                    {lastItem ? formatCurrency(lastLineTotal) : '—'}
                   </p>
                 </div>
               </div>
-            ) : (
-              <div className="flex items-center gap-4 rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-6">
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-white/5 text-white/25 sm:h-24 sm:w-24">
-                  <span className="text-center text-[11px] font-semibold uppercase tracking-wide">
-                    Sem
-                    <br />
-                    itens
-                  </span>
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-white/80">Comece pelo campo acima</p>
-                  <p className="mt-1 text-sm text-white/40">
-                    Os produtos entram na lista à direita. Depois clique em Encerrar.
-                  </p>
-                </div>
-              </div>
-            )}
+
+              {avulsoProduct && (
+                <button
+                  type="button"
+                  onClick={handleAddAvulso}
+                  className="self-start rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Item avulso <kbd className="ml-1 rounded bg-slate-100 px-1 font-mono">F4</kbd>
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* Mobile items list */}
-          <div className="min-h-0 flex-1 overflow-hidden lg:hidden">
-            <div className="flex h-full min-h-[200px] flex-col">
-              <div className="shrink-0 border-b border-white/10 bg-[#111827] px-3 py-2">
-                <p className="text-xs font-semibold uppercase tracking-wider text-white/50">
-                  Itens da venda · {itemCount}
-                </p>
-              </div>
-              <div className="min-h-0 flex-1">
-                <Cart
-                  items={cartItems}
-                  onUpdateQty={handleUpdateQty}
-                  onUpdatePrice={handleUpdatePrice}
-                  onUpdateDescription={handleUpdateDescription}
-                  onRemove={handleRemove}
-                  variant="cashier"
-                />
-              </div>
+          {/* Mobile cupom */}
+          <div className="min-h-0 flex-1 overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200 lg:hidden">
+            <div className="border-b border-slate-200 bg-[#1e3a5f] px-3 py-2 text-center text-xs font-bold uppercase tracking-[0.2em] text-white">
+              Cupom · {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+            </div>
+            <div className="min-h-[180px]">
+              <Cart
+                items={cartItems}
+                onUpdateQty={handleUpdateQty}
+                onUpdatePrice={handleUpdatePrice}
+                onUpdateDescription={handleUpdateDescription}
+                onRemove={handleRemove}
+                variant="cashier"
+              />
             </div>
           </div>
         </section>
 
-        <aside className="hidden min-h-0 w-full shrink-0 flex-col border-l border-white/10 bg-[#0b1220] lg:flex lg:w-[400px] xl:w-[440px]">
-          <div className="shrink-0 border-b border-white/10 px-4 py-3">
-            <p className="text-sm font-bold text-white">Itens da venda</p>
-            <p className="text-xs text-white/40">
-              {itemCount} {itemCount === 1 ? 'item' : 'itens'}
+        {/* Direita: cupom */}
+        <aside className="hidden min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200 lg:flex lg:w-[420px] xl:w-[480px]">
+          <div className="shrink-0 bg-[#1e3a5f] px-4 py-2.5 text-center text-white">
+            <p className="text-sm font-black uppercase tracking-[0.25em]">Cupom</p>
+            <p className="text-[11px] text-blue-100/80">
+              {itemCount} {itemCount === 1 ? 'item' : 'itens'} · Consumidor final
             </p>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -637,48 +662,79 @@ export function PDV({ avulsoProduct }: PDVProps) {
         </aside>
       </div>
 
-      <footer className="shrink-0 border-t border-white/10 bg-[#111827]">
-        <div className="flex items-center justify-between gap-4 px-3 py-3 sm:px-5">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Total</p>
-            <p className="text-4xl font-black tabular-nums text-white sm:text-5xl">
-              {formatCurrency(total)}
-            </p>
-          </div>
-          <Button
-            className="h-14 shrink-0 bg-emerald-500 px-6 text-base font-bold text-[#04120c] hover:bg-emerald-400 disabled:opacity-40 sm:h-16 sm:px-10 sm:text-lg"
-            onClick={openCheckout}
-            disabled={cartItems.length === 0 || isSubmitting}
+      {/* Rodapé: status + total + atalhos */}
+      <footer className="shrink-0 border-t border-slate-300 bg-white">
+        <div className="flex flex-col sm:flex-row">
+          <div
+            className={`flex items-center justify-center px-4 py-3 sm:w-52 ${
+              isBusy ? 'bg-[#1e3a5f] text-white' : 'bg-emerald-600 text-white'
+            }`}
           >
-            Encerrar venda
-            <kbd className="ml-2 rounded bg-black/15 px-1.5 py-0.5 font-mono text-xs font-semibold">
-              F7
-            </kbd>
-          </Button>
+            <div className="text-center">
+              <p className="text-[10px] font-semibold uppercase tracking-wider opacity-70">Aviso</p>
+              <p className="text-sm font-black uppercase tracking-wide sm:text-base">
+                {isBusy ? 'Caixa ocupado' : 'Caixa aberto'}
+              </p>
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 bg-[#234e7a] px-4 py-3 text-white sm:px-6">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-100/70">
+                Subtotal
+              </p>
+              <p className="text-4xl font-black tabular-nums sm:text-5xl">
+                {formatCurrency(total)}
+              </p>
+            </div>
+            <Button
+              className="h-14 shrink-0 bg-emerald-400 px-5 text-base font-bold text-emerald-950 hover:bg-emerald-300 disabled:opacity-40 sm:h-16 sm:px-8 sm:text-lg"
+              onClick={openCheckout}
+              disabled={cartItems.length === 0 || isSubmitting}
+            >
+              Encerrar
+              <kbd className="ml-2 rounded bg-black/10 px-1.5 py-0.5 font-mono text-xs">F7</kbd>
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-[#1e3a5f] px-3 py-1.5 text-white">
+          {avulsoProduct && (
+            <span className="rounded bg-white/10 px-2 py-1 text-[11px] font-semibold">
+              <kbd className="mr-1 font-mono text-[10px] opacity-70">F4</kbd> Avulso
+            </span>
+          )}
+          <span className="rounded bg-white/10 px-2 py-1 text-[11px] font-semibold">
+            <kbd className="mr-1 font-mono text-[10px] opacity-70">F7</kbd> Encerrar venda
+          </span>
+          <span className="rounded bg-white/10 px-2 py-1 text-[11px] font-semibold">
+            <kbd className="mr-1 font-mono text-[10px] opacity-70">F10</kbd> Finalizar
+          </span>
+          <span className="ml-auto hidden text-[11px] text-blue-100/60 sm:inline">
+            Bipe → Enter → qtd → Enter · F7 recebe o pagamento
+          </span>
         </div>
       </footer>
 
       {completedSale && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/60 p-4 backdrop-blur-[2px]">
-          <div className="w-full max-w-md rounded-2xl border border-emerald-400/30 bg-[#0d1c31] p-6 shadow-2xl">
-            <div className="flex items-center gap-2 text-emerald-300">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
+          <div className="w-full max-w-md rounded-2xl border border-emerald-300 bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-2 text-emerald-700">
               <CheckCircle2 className="h-6 w-6" />
-              <p className="text-lg font-bold text-white">Venda concluída</p>
+              <p className="text-lg font-bold text-slate-900">Venda concluída</p>
             </div>
-            <p className="mt-3 text-4xl font-black tabular-nums text-white">
+            <p className="mt-3 text-4xl font-black tabular-nums text-slate-900">
               {formatCurrency(completedSale.total)}
             </p>
-            <p className="mt-1 text-sm text-white/50">{completedSale.paymentLabel}</p>
+            <p className="mt-1 text-sm text-slate-500">{completedSale.paymentLabel}</p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row">
               <Button
-                className="h-12 flex-1 bg-emerald-500 font-bold text-[#04120c] hover:bg-emerald-400"
+                className="h-12 flex-1 bg-emerald-500 font-bold text-white hover:bg-emerald-400"
                 onClick={() => setCompletedSale(null)}
               >
                 Nova venda
               </Button>
               <Button
                 variant="outline"
-                className="h-12 flex-1 border-white/15 bg-transparent text-white hover:bg-white/5"
+                className="h-12 flex-1"
                 onClick={() => router.push(`/vendas/${completedSale.saleId}/recibo`)}
               >
                 Ver recibo

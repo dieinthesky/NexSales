@@ -205,21 +205,21 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
       {/* ── Search input ── */}
       {isCashier ? (
         <div className="space-y-1.5">
-          <label className="block text-xs font-semibold text-white/55">
-            Buscar produto
+          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            Código de barras
           </label>
           <div className="relative">
             <ScanBarcode
               aria-hidden="true"
-              className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-emerald-400/80"
+              className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#234e7a]"
             />
             <Input
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
-              placeholder="Digite o nome ou bipe o código de barras..."
-              className="h-14 rounded-xl border border-white/15 bg-[#0b1220] pl-12 pr-4 text-base font-medium text-white placeholder:text-white/35 focus-visible:border-emerald-400/60 focus-visible:ring-emerald-500/20"
+              placeholder="Bipe o código ou digite o nome..."
+              className="h-14 rounded-xl border-2 border-slate-200 bg-slate-50 pl-12 pr-4 text-lg font-semibold text-slate-900 placeholder:text-slate-400 focus-visible:border-[#234e7a] focus-visible:ring-[#234e7a]/20"
               autoComplete="off"
               spellCheck={false}
               inputMode="text"
@@ -265,22 +265,24 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
         <div
           className={
             isCashier
-              ? 'rounded-xl border border-emerald-400/40 bg-emerald-500/10 p-4 space-y-3'
+              ? 'rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 space-y-3'
               : 'rounded-lg border-2 border-primary/60 bg-primary/5 dark:bg-primary/10 p-3 space-y-3 shadow-sm'
           }
         >
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p
-                className={`font-semibold truncate ${
-                  isCashier ? 'text-lg text-white' : 'text-sm text-slate-900 dark:text-slate-100'
+                className={`font-semibold ${
+                  isCashier
+                    ? 'text-base text-slate-900'
+                    : 'text-sm text-slate-900 dark:text-slate-100 truncate'
                 }`}
               >
                 {staged.product.name}
               </p>
               <p
                 className={`mt-0.5 ${
-                  isCashier ? 'text-sm text-white/50' : 'text-xs text-slate-500 dark:text-slate-400'
+                  isCashier ? 'text-sm text-slate-500' : 'text-xs text-slate-500 dark:text-slate-400'
                 }`}
               >
                 Cód: {staged.product.code} · Estoque: {staged.product.stock_quantity} ·{' '}
@@ -292,7 +294,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
               onClick={cancelStaged}
               className={
                 isCashier
-                  ? 'shrink-0 text-white/40 hover:text-white mt-0.5'
+                  ? 'shrink-0 text-slate-400 hover:text-slate-700 mt-0.5'
                   : 'shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-0.5'
               }
               aria-label="Cancelar"
@@ -304,7 +306,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
           <div className="flex items-center gap-2">
             <span
               className={`shrink-0 font-medium ${
-                isCashier ? 'text-sm text-white/60' : 'text-xs text-slate-600 dark:text-slate-400'
+                isCashier ? 'text-sm text-slate-600' : 'text-xs text-slate-600 dark:text-slate-400'
               }`}
             >
               Quantidade:
@@ -313,7 +315,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
             <div
               className={`inline-flex items-center overflow-hidden rounded-md border ${
                 isCashier
-                  ? 'border-white/15 bg-[#0b1220]'
+                  ? 'border-slate-300 bg-white'
                   : 'border-slate-200 dark:border-white/10 bg-white dark:bg-slate-800'
               }`}
             >
@@ -323,7 +325,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                 disabled={staged.quantity <= 1}
                 className={`h-9 w-9 inline-flex items-center justify-center disabled:opacity-40 transition-colors ${
                   isCashier
-                    ? 'text-white/70 hover:bg-white/10'
+                    ? 'text-slate-700 hover:bg-slate-100'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8'
                 }`}
                 aria-label="Diminuir"
@@ -341,7 +343,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                 onKeyDown={handleStagedQtyKeyDown}
                 className={`w-14 h-9 text-center text-base font-bold tabular-nums border-x focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                   isCashier
-                    ? 'text-white bg-[#0b1220] border-white/15 focus:bg-emerald-500/10'
+                    ? 'text-slate-900 bg-white border-slate-200 focus:bg-emerald-50'
                     : 'text-slate-900 dark:text-slate-100 bg-white dark:bg-slate-800 border-slate-200 dark:border-white/10 focus:bg-primary/10 dark:focus:bg-primary/20'
                 }`}
                 aria-label="Quantidade"
@@ -355,7 +357,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                 }
                 className={`h-9 w-9 inline-flex items-center justify-center disabled:opacity-40 transition-colors ${
                   isCashier
-                    ? 'text-white/70 hover:bg-white/10'
+                    ? 'text-slate-700 hover:bg-slate-100'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/8'
                 }`}
                 aria-label="Aumentar"
@@ -366,18 +368,18 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
 
             <Button
               size="sm"
-              className="h-9 flex-1 bg-emerald-500 font-semibold text-[#04120c] hover:bg-emerald-400 sm:flex-initial"
+              className="h-9 flex-1 bg-emerald-500 font-semibold text-white hover:bg-emerald-400 sm:flex-initial"
               onClick={confirmStaged}
             >
               <CheckCircle2 className="h-4 w-4 mr-1.5" />
               Adicionar{' '}
-              <span className="ml-1 hidden text-xs font-normal text-[#04120c]/80 sm:inline">
+              <span className="ml-1 hidden text-xs font-normal text-emerald-50 sm:inline">
                 ↵ Enter
               </span>
             </Button>
           </div>
 
-          <p className={`text-[11px] font-medium ${isCashier ? 'text-emerald-300/80' : 'text-primary'}`}>
+          <p className={`text-[11px] font-medium ${isCashier ? 'text-emerald-800' : 'text-primary'}`}>
             Digite a quantidade e pressione <strong>Enter</strong> · <strong>Esc</strong> para cancelar
           </p>
         </div>
@@ -398,7 +400,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
       )}
 
       {(loading || scanning) && (
-        <p className={`px-1 text-xs ${isCashier ? 'text-white/40' : 'text-slate-400'}`}>
+        <p className={`px-1 text-xs ${isCashier ? 'text-slate-500' : 'text-slate-400'}`}>
           {scanning ? 'Lendo código...' : 'Buscando...'}
         </p>
       )}
@@ -410,7 +412,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
           role="listbox"
           className={
             isCashier
-              ? 'max-h-56 overflow-y-auto rounded-xl border border-white/10 bg-[#0b1220] divide-y divide-white/5 shadow-xl'
+              ? 'max-h-56 overflow-y-auto rounded-xl border border-slate-200 bg-white divide-y divide-slate-100 shadow-lg'
               : 'border border-slate-200 dark:border-white/8 rounded-lg divide-y divide-slate-100 dark:divide-white/5 bg-white dark:bg-slate-800 shadow-sm max-h-48 sm:max-h-64 overflow-y-auto'
           }
         >
@@ -425,8 +427,8 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
               className={`w-full text-left flex items-center justify-between gap-3 px-4 py-2.5 transition-colors focus:outline-none ${
                 isCashier
                   ? index === highlightedIndex
-                    ? 'bg-emerald-500/20 border-l-2 border-l-emerald-400'
-                    : 'hover:bg-white/5'
+                    ? 'bg-emerald-50 border-l-2 border-l-emerald-500'
+                    : 'hover:bg-slate-50'
                   : index === highlightedIndex
                     ? 'bg-primary/5 dark:bg-primary/15 border-l-2 border-l-blue-500'
                     : 'hover:bg-slate-50 dark:hover:bg-white/5'
@@ -437,14 +439,14 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p
-                    className={`text-sm font-medium truncate ${
+                    className={`text-sm font-medium ${
                       isCashier
                         ? index === highlightedIndex
-                          ? 'text-emerald-200'
-                          : 'text-white'
+                          ? 'text-emerald-900 font-semibold'
+                          : 'text-slate-900'
                         : index === highlightedIndex
-                          ? 'text-primary/80 dark:text-primary'
-                          : 'text-slate-900 dark:text-slate-100'
+                          ? 'text-primary/80 dark:text-primary truncate'
+                          : 'text-slate-900 dark:text-slate-100 truncate'
                     }`}
                   >
                     {product.name}
@@ -455,18 +457,18 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
                     </span>
                   )}
                 </div>
-                <p className={`text-xs ${isCashier ? 'text-white/40' : 'text-slate-500 dark:text-slate-400'}`}>
+                <p className={`text-xs ${isCashier ? 'text-slate-500' : 'text-slate-500 dark:text-slate-400'}`}>
                   Cód: {product.code} · Estoque: {product.stock_quantity} ·{' '}
                   {formatCurrency(product.sale_price)}
                 </p>
               </div>
               <span
                 className={`shrink-0 text-[11px] hidden sm:block ${
-                  isCashier ? 'text-white/35' : 'text-slate-400 dark:text-slate-500'
+                  isCashier ? 'text-slate-400' : 'text-slate-400 dark:text-slate-500'
                 }`}
               >
                 {index === highlightedIndex ? (
-                  <span className={isCashier ? 'text-emerald-300 font-medium' : 'text-primary/80 dark:text-primary font-medium'}>
+                  <span className={isCashier ? 'text-emerald-700 font-medium' : 'text-primary/80 dark:text-primary font-medium'}>
                     ↵ Enter
                   </span>
                 ) : (
@@ -487,7 +489,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
       )}
 
       {!loading && !scanning && !staged && query && results.length === 0 && (
-        <p className={`px-1 text-sm ${isCashier ? 'text-white/40' : 'text-slate-400'}`}>
+        <p className={`px-1 text-sm ${isCashier ? 'text-slate-500' : 'text-slate-400'}`}>
           Nenhum produto encontrado em estoque.
         </p>
       )}
