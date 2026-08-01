@@ -65,6 +65,16 @@ describe('searchProducts', () => {
     expect(await searchProducts('Sem Estoque')).toHaveLength(0)
   })
 
+  it('includes untracked products even when stock is 0', async () => {
+    const db = getDB()
+    await db.products.add(
+      makeProduct({ code: 'AVU', name: 'Avulso Offline', stock_quantity: 0, track_stock: false }),
+    )
+    const results = await searchProducts('Avulso Offline')
+    expect(results).toHaveLength(1)
+    expect(results[0].code).toBe('AVU')
+  })
+
   it('returns an empty array for a blank query', async () => {
     expect(await searchProducts('   ')).toHaveLength(0)
   })

@@ -89,6 +89,21 @@ describe('queueSale', () => {
     const updated = await db.products.get(product.id)
     expect(updated?.stock_quantity).toBe(0)
   })
+
+  it('does not decrement stock for products with track_stock=false', async () => {
+    const db = getDB()
+    const product = makeProduct({ stock_quantity: 0, track_stock: false })
+    await db.products.add(product)
+    await queueSale({
+      client_uuid: crypto.randomUUID(),
+      payment_method: 'cash',
+      notes: '',
+      total: 10,
+      items: [{ product_id: product.id, quantity: 2, name: product.name, unit_price: 5 }],
+    })
+    const updated = await db.products.get(product.id)
+    expect(updated?.stock_quantity).toBe(0)
+  })
 })
 
 describe('getPendingCount', () => {
