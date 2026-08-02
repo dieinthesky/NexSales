@@ -95,7 +95,13 @@ export async function getProductsPaged(
   const { data, error, count } = await query
   if (error) throw new Error(error.message)
 
-  const items = (data ?? []) as ProductWithCategory[]
+  // Evita linha duplicada se o join de categoria vier instável
+  const seen = new Set<string>()
+  const items = ((data ?? []) as ProductWithCategory[]).filter((p) => {
+    if (seen.has(p.id)) return false
+    seen.add(p.id)
+    return true
+  })
   const total = count ?? items.length
   const totalPages = Math.max(1, Math.ceil(total / pageSize))
 

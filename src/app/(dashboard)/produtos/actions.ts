@@ -15,6 +15,10 @@ import {
   getAdminDataClient,
   resolveAdminContext,
 } from '@/lib/supabase/admin-data'
+import { tryCreateServiceClient } from '@/lib/supabase/service'
+import { getDb, isElectron } from '@/lib/db/client'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
 
 export type BarcodeLookupResult =
   | {
@@ -412,36 +416,160 @@ export async function updateProduct(id: string, formData: FormData) {
   redirect('/produtos')
 }
 
+type ProductTarget = { id: string; store_id: string | null }
+
+/** Localiza produto: sessão (RLS) → service role → SQLite (desktop). */
+async function resolveProductForMutation(
+  id: string,
+): Promise<{
+  product: ProductTarget
+  writeClient: SupabaseClient<Database> | null
+  localOnly: boolean
+} | null> {
+  const trimmed = id?.trim()
+  if (!trimmed) return null
+
+  const userClient = await createClient()
+  const { data: rls } = await userClient
+    .from('products')
+    .select('id, store_id')
+    .eq('id', trimmed)
+    .maybeSingle()
+  if (rls) {
+    return {
+      product: rls as ProductTarget,
+      writeClient: userClient,
+      localOnly: false,
+    }
+  }
+
+  const service = tryCreateServiceClient()
+  if (service) {
+    const { data: row } = await service
+      .from('products')
+      .select('id, store_id')
+      .eq('id', trimmed)
+      .maybeSingle()
+    if (row) {
+      return {
+        product: row as ProductTarget,
+        writeClient: service,
+        localOnly: false,
+      }
+    }
+  }
+
+  // Desktop: lista vem do SQLite; sessão offline às vezes não enxerga o Supabase.
+  // Chegamos aqui só se RLS e service role não acharam o id na nuvem.
+  if (isElectron()) {
+    try {
+      const row = getDb()
+        .prepare(`SELECT id, store_id FROM products WHERE id = ?`)
+        .get(trimmed) as ProductTarget | undefined
+      if (row?.id) {
+        return {
+          product: {
+            id: String(row.id),
+            store_id: row.store_id ? String(row.store_id) : null,
+          },
+          writeClient: service ?? userClient,
+          localOnly: true,
+        }
+      }
+    } catch {
+      // ignore sqlite errors
+    }
+  }
+
+  return null
+}
+
+function applyLocalProductRemoval(id: string, hard: boolean): void {
+  if (!isElectron()) return
+  try {
+    const db = getDb()
+    if (hard) {
+      db.prepare(`DELETE FROM products WHERE id = ?`).run(id)
+    } else {
+      db.prepare(
+        `UPDATE products SET is_active = 0, updated_at = datetime('now') WHERE id = ?`,
+      ).run(id)
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 export async function deleteProduct(id: string) {
   if (!(await isAdmin())) {
     return { error: 'Apenas administradores podem excluir produtos.' }
   }
 
   const { role, storeId, storeIds } = await resolveAdminContext()
-  const supabase = await getAdminDataClient()
-  const { data: existing } = await supabase
-    .from('products')
-    .select('id, store_id')
-    .eq('id', id)
-    .maybeSingle()
+  const resolved = await resolveProductForMutation(id)
 
-  if (!existing) return { error: 'Produto não encontrado.' }
-  if (!canAccessStoreRow(role, storeId, existing.store_id, storeIds)) {
+  if (!resolved) {
+    return {
+      error:
+        'Produto não encontrado no servidor. Atualize a página (F5) e tente de novo. No app de PC: confira a conexão e o login.',
+    }
+  }
+
+  const { product, writeClient, localOnly } = resolved
+  if (!canAccessStoreRow(role, storeId, product.store_id, storeIds)) {
     return { error: 'Sem permissão para excluir este produto.' }
   }
 
-  const { count } = await supabase
-    .from('sale_items')
-    .select('*', { count: 'exact', head: true })
-    .eq('product_id', id)
-
-  if ((count ?? 0) > 0) {
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: false })
-      .eq('id', id)
-    if (error) return { error: error.message }
+  // Só no cache local (sem achar no Supabase) — remove e some da lista do desktop
+  if (localOnly || !writeClient) {
+    applyLocalProductRemoval(product.id, true)
     revalidatePath('/produtos')
+    revalidatePath('/vendas/nova')
+    return {
+      success: true as const,
+      deleted: true as const,
+      message: 'Produto removido.',
+    }
+  }
+
+  // Mesmo com find via RLS: se o update/delete for bloqueado, tenta service role
+  const clients: SupabaseClient<Database>[] = [writeClient]
+  const service = tryCreateServiceClient()
+  if (service && service !== writeClient) clients.push(service)
+
+  async function withClients<T>(
+    fn: (c: SupabaseClient<Database>) => Promise<{ data: T; error: { message: string } | null }>,
+  ): Promise<{ data: T | null; error: string | null }> {
+    let lastError: string | null = null
+    for (const c of clients) {
+      const { data, error } = await fn(c)
+      if (!error) return { data, error: null }
+      lastError = error.message
+    }
+    return { data: null, error: lastError }
+  }
+
+  let salesCount = 0
+  for (const c of clients) {
+    const { count, error } = await c
+      .from('sale_items')
+      .select('*', { count: 'exact', head: true })
+      .eq('product_id', product.id)
+    if (!error) {
+      salesCount = count ?? 0
+      break
+    }
+  }
+
+  if (salesCount > 0) {
+    const { error } = await withClients(async (c) => {
+      const res = await c.from('products').update({ is_active: false }).eq('id', product.id)
+      return { data: null, error: res.error }
+    })
+    if (error) return { error }
+    applyLocalProductRemoval(product.id, false)
+    revalidatePath('/produtos')
+    revalidatePath('/vendas/nova')
     return {
       success: true as const,
       deactivated: true as const,
@@ -449,12 +577,20 @@ export async function deleteProduct(id: string) {
     }
   }
 
-  const { error } = await supabase.from('products').delete().eq('id', id)
-  if (error) {
-    // FK residual — soft delete
-    const soft = await supabase.from('products').update({ is_active: false }).eq('id', id)
-    if (soft.error) return { error: soft.error.message }
+  const { error: delError } = await withClients(async (c) => {
+    const res = await c.from('products').delete().eq('id', product.id)
+    return { data: null, error: res.error }
+  })
+
+  if (delError) {
+    const { error: softError } = await withClients(async (c) => {
+      const res = await c.from('products').update({ is_active: false }).eq('id', product.id)
+      return { data: null, error: res.error }
+    })
+    if (softError) return { error: softError }
+    applyLocalProductRemoval(product.id, false)
     revalidatePath('/produtos')
+    revalidatePath('/vendas/nova')
     return {
       success: true as const,
       deactivated: true as const,
@@ -462,7 +598,9 @@ export async function deleteProduct(id: string) {
     }
   }
 
+  applyLocalProductRemoval(product.id, true)
   revalidatePath('/produtos')
+  revalidatePath('/vendas/nova')
   return { success: true as const, deleted: true as const }
 }
 
