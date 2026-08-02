@@ -102,7 +102,15 @@ export default async function EditarProdutoPage({
             </p>
           )}
         </div>
-        {!product.is_active && <ReactivateProductButton productId={product.id} />}
+        <div className="flex flex-wrap items-center gap-2">
+          <a
+            href={`/produtos/${id}/etiqueta`}
+            className="inline-flex h-9 items-center rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            Etiqueta de prateleira
+          </a>
+          {!product.is_active && <ReactivateProductButton productId={product.id} />}
+        </div>
       </div>
 
       <ProductForm product={product} categories={categories} onSubmit={action} />
