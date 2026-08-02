@@ -110,7 +110,7 @@ export async function updateCustomer(input: {
     resolveAdminContext,
   } = await import('@/lib/supabase/admin-data')
 
-  const { role, storeId } = await resolveAdminContext()
+  const { role, storeId, storeIds } = await resolveAdminContext()
   const supabase = await getAdminDataClient()
   const { data: existing } = await supabase
     .from('customers')
@@ -119,7 +119,7 @@ export async function updateCustomer(input: {
     .maybeSingle()
 
   if (!existing) return { error: 'Cliente não encontrado.' }
-  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+  if (!canAccessStoreRow(role, storeId, existing.store_id, storeIds)) {
     return { error: 'Sem permissão para editar este cliente.' }
   }
 
@@ -153,7 +153,7 @@ export async function deleteCustomer(
     resolveAdminContext,
   } = await import('@/lib/supabase/admin-data')
 
-  const { role, storeId } = await resolveAdminContext()
+  const { role, storeId, storeIds } = await resolveAdminContext()
   const supabase = await getAdminDataClient()
   const { data: existing } = await supabase
     .from('customers')
@@ -162,7 +162,7 @@ export async function deleteCustomer(
     .maybeSingle()
 
   if (!existing) return { error: 'Cliente não encontrado.' }
-  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+  if (!canAccessStoreRow(role, storeId, existing.store_id, storeIds)) {
     return { error: 'Sem permissão para excluir este cliente.' }
   }
 

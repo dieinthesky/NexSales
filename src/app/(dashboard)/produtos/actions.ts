@@ -204,7 +204,7 @@ export async function fetchProductImage(productId: string): Promise<{
     return { error: 'Apenas administradores podem atualizar foto.' }
   }
 
-  const supabase = await createClient()
+  const supabase = await getAdminDataClient()
   const { data: product, error } = await supabase
     .from('products')
     .select('id, code, image_url')
@@ -365,7 +365,7 @@ export async function updateProduct(id: string, formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
-  const { role, storeId } = await resolveAdminContext()
+  const { role, storeId, storeIds } = await resolveAdminContext()
   const supabase = await getAdminDataClient()
   const { data: existing } = await supabase
     .from('products')
@@ -374,7 +374,7 @@ export async function updateProduct(id: string, formData: FormData) {
     .maybeSingle()
 
   if (!existing) return { error: 'Produto não encontrado.' }
-  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+  if (!canAccessStoreRow(role, storeId, existing.store_id, storeIds)) {
     return { error: 'Sem permissão para editar este produto.' }
   }
 
@@ -417,7 +417,7 @@ export async function deleteProduct(id: string) {
     return { error: 'Apenas administradores podem excluir produtos.' }
   }
 
-  const { role, storeId } = await resolveAdminContext()
+  const { role, storeId, storeIds } = await resolveAdminContext()
   const supabase = await getAdminDataClient()
   const { data: existing } = await supabase
     .from('products')
@@ -426,7 +426,7 @@ export async function deleteProduct(id: string) {
     .maybeSingle()
 
   if (!existing) return { error: 'Produto não encontrado.' }
-  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+  if (!canAccessStoreRow(role, storeId, existing.store_id, storeIds)) {
     return { error: 'Sem permissão para excluir este produto.' }
   }
 
@@ -471,7 +471,7 @@ export async function reactivateProduct(id: string) {
     return { error: 'Apenas administradores podem reativar produtos.' }
   }
 
-  const { role, storeId } = await resolveAdminContext()
+  const { role, storeId, storeIds } = await resolveAdminContext()
   const supabase = await getAdminDataClient()
   const { data: existing } = await supabase
     .from('products')
@@ -480,7 +480,7 @@ export async function reactivateProduct(id: string) {
     .maybeSingle()
 
   if (!existing) return { error: 'Produto não encontrado.' }
-  if (!canAccessStoreRow(role, storeId, existing.store_id)) {
+  if (!canAccessStoreRow(role, storeId, existing.store_id, storeIds)) {
     return { error: 'Sem permissão para reativar este produto.' }
   }
 

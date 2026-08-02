@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 import { ProductForm } from '@/components/products/product-form'
 import { ReactivateProductButton } from '@/components/products/reactivate-product-button'
 import { updateProduct } from '../actions'
@@ -18,23 +19,40 @@ export default async function EditarProdutoPage({
 }) {
   const user = await requireAdmin()
   const { id } = await params
-  const { role, storeId } = await resolveAdminContext(user)
-  const client = await getAdminDataClient()
+  const { role, storeId, storeIds } = await resolveAdminContext(user)
 
   let product: Product | null = null
   let categories: Category[] = []
 
-  const [{ data: productRow }, { data: categoryRows }] = await Promise.all([
-    client.from('products').select('*').eq('id', id).maybeSingle(),
-    client
-      .from('categories')
-      .select('*')
-      .order('name'),
+  // 1) RLS do usuário (conta padrão / JWT válido) — se enxergar o produto, pode editar
+  const userClient = await createClient()
+  const [{ data: rlsProduct }, { data: rlsCategories }] = await Promise.all([
+    userClient.from('products').select('*').eq('id', id).maybeSingle(),
+    userClient.from('categories').select('*').order('name'),
   ])
+  if (rlsProduct) product = rlsProduct as Product
+  if (rlsCategories?.length) categories = rlsCategories as Category[]
 
-  product = (productRow as Product | null) ?? null
-  categories = (categoryRows as Category[] | null) ?? []
+  // 2) Service role / admin client (desktop offline ou JWT fraco)
+  if (!product) {
+    const client = await getAdminDataClient()
+    const [{ data: productRow }, { data: categoryRows }] = await Promise.all([
+      client.from('products').select('*').eq('id', id).maybeSingle(),
+      client.from('categories').select('*').order('name'),
+    ])
+    product = (productRow as Product | null) ?? null
+    if (!categories.length) {
+      categories = (categoryRows as Category[] | null) ?? []
+    }
+    if (
+      product &&
+      !canAccessStoreRow(role, storeId, product.store_id, storeIds)
+    ) {
+      notFound()
+    }
+  }
 
+  // 3) SQLite local (Electron)
   if (!product && isElectron()) {
     try {
       const { getDb } = await import('@/lib/db/client')
@@ -43,10 +61,14 @@ export default async function EditarProdutoPage({
         | Record<string, unknown>
         | undefined
       if (row) {
-        product = {
+        const mapped: Product = {
           ...(row as unknown as Product),
           is_active: row.is_active === true || row.is_active === 1,
           track_stock: row.track_stock === true || row.track_stock === 1,
+        }
+        if (canAccessStoreRow(role, storeId, mapped.store_id, storeIds) || !storeId) {
+          // Sem storeId resolvido: confia no cache local (já filtrado no sync da loja)
+          product = mapped
         }
       }
       if (categories.length === 0) {
@@ -59,10 +81,9 @@ export default async function EditarProdutoPage({
   }
 
   if (!product) notFound()
-  if (!canAccessStoreRow(role, storeId, product.store_id)) notFound()
 
   if (role !== 'master' && storeId) {
-    categories = categories.filter((c) => c.store_id === storeId)
+    categories = categories.filter((c) => !c.store_id || c.store_id === storeId)
   }
 
   const action = updateProduct.bind(null, id)
