@@ -1,19 +1,13 @@
 /**
  * Offline-first product reads for the PDV.
  *
- * The point of sale must work with no network, so it reads exclusively from
- * the local IndexedDB cache (kept fresh by `SyncProvider` → `sync.ts`).
- * Catalogs here are small (hundreds of rows), so a full `.filter()` scan for
- * substring matches is cheap and mirrors the previous Supabase `ilike %q%`
- * semantics exactly — no need for prefix-only Dexie index queries.
- *
- * Browser-only: `getDB()` throws on the server, so only import from client
- * components.
+ * Local IndexedDB first; when online and local miss, sync and query Supabase.
  */
 
 import 'client-only'
 import { getDB } from './db'
 import { syncProducts } from './sync'
+import { createClient } from '@/lib/supabase/client'
 import type { Product } from '@/types/database'
 
 const DEFAULT_LIMIT = 20
@@ -22,9 +16,17 @@ function isReservedCode(code: string | null | undefined): boolean {
   return Boolean(code && code.startsWith('__'))
 }
 
+function sortMatches(matches: Product[]): Product[] {
+  return matches.sort((a, b) => {
+    const aStock = !a.track_stock || a.stock_quantity > 0 ? 0 : 1
+    const bStock = !b.track_stock || b.stock_quantity > 0 ? 0 : 1
+    if (aStock !== bStock) return aStock - bStock
+    return a.name.localeCompare(b.name, 'pt-BR')
+  })
+}
+
 /**
  * Substring search by name OR code, case-insensitive.
- * Produtos sem estoque também aparecem (aviso no PDV).
  */
 export async function searchProducts(
   query: string,
@@ -34,7 +36,7 @@ export async function searchProducts(
   if (!q) return []
 
   const db = getDB()
-  const matches = await db.products
+  const local = await db.products
     .filter(
       (p) =>
         p.is_active &&
@@ -44,14 +46,108 @@ export async function searchProducts(
     .limit(limit * 3)
     .toArray()
 
-  return matches
-    .sort((a, b) => {
-      const aStock = !a.track_stock || a.stock_quantity > 0 ? 0 : 1
-      const bStock = !b.track_stock || b.stock_quantity > 0 ? 0 : 1
-      if (aStock !== bStock) return aStock - bStock
-      return a.name.localeCompare(b.name, 'pt-BR')
-    })
-    .slice(0, limit)
+  if (local.length > 0) {
+    return sortMatches(local).slice(0, limit)
+  }
+
+  // Catalog vazio ou desatualizado: tenta rede
+  if (typeof navigator !== 'undefined' && navigator.onLine) {
+    try {
+      await syncProducts()
+      const after = await db.products
+        .filter(
+          (p) =>
+            p.is_active &&
+            !isReservedCode(p.code) &&
+            (p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)),
+        )
+        .limit(limit * 3)
+        .toArray()
+      if (after.length > 0) return sortMatches(after).slice(0, limit)
+
+      const remote = await searchProductsRemote(q, limit)
+      if (remote.length > 0) {
+        // injeta no cache local
+        try {
+          await db.products.bulkPut(remote)
+        } catch {
+          // ignore
+        }
+        return remote
+      }
+    } catch {
+      // offline / falha
+    }
+  }
+
+  return []
+}
+
+async function searchProductsRemote(q: string, limit: number): Promise<Product[]> {
+  const supabase = createClient()
+  // Escapa % e _ para não virar curinga do ilike
+  const safe = q.replace(/[%_\\]/g, '\\$&')
+  const pattern = `%${safe}%`
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .eq('is_active', true)
+    .or(`name.ilike."${pattern}",code.ilike."${pattern}"`)
+    .limit(limit * 2)
+
+  if (error || !data) {
+    // Fallback sem aspas se o filtro quebrado
+    const again = await supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .ilike('name', pattern)
+      .limit(limit)
+    if (!again.data) return []
+    return sortMatches(
+      (again.data as Product[]).filter((p) => p.code && !isReservedCode(p.code)),
+    ).slice(0, limit)
+  }
+
+  return sortMatches(
+    (data as Product[]).filter((p) => p.code && !isReservedCode(p.code)),
+  ).slice(0, limit)
+}
+
+async function getByCodeRemote(code: string): Promise<Product | null> {
+  const supabase = createClient()
+  // exact code primeiro; fallback nome curto
+  const { data: byCode } = await supabase
+    .from('products')
+    .select('*')
+    .eq('is_active', true)
+    .ilike('code', code)
+    .limit(5)
+
+  const rows = ((byCode ?? []) as Product[]).filter(
+    (p) => p.code && !isReservedCode(p.code),
+  )
+  const exact = rows.find((p) => p.code.trim().toLowerCase() === code.toLowerCase())
+  if (exact) return exact
+
+  if (code.length >= 2) {
+    const { data: byName } = await supabase
+      .from('products')
+      .select('*')
+      .eq('is_active', true)
+      .ilike('name', `%${code}%`)
+      .limit(5)
+    const nameRows = ((byName ?? []) as Product[]).filter(
+      (p) => !isReservedCode(p.code),
+    )
+    if (nameRows.length === 1) return nameRows[0]
+    const exactName = nameRows.find(
+      (p) => p.name.trim().toLowerCase() === code.toLowerCase(),
+    )
+    if (exactName) return exactName
+  }
+
+  return rows[0] ?? null
 }
 
 /** Exact barcode/SKU lookup. Returns null when there's no active match. */
@@ -73,7 +169,19 @@ export async function getByCode(code: string): Promise<Product | null> {
           p.code.trim().toLowerCase() === trimmed.toLowerCase(),
       )
       .first()
-    return all ?? null
+    if (all) return all
+
+    // Nome exato no cache
+    return (
+      (await db.products
+        .filter(
+          (p) =>
+            p.is_active &&
+            !isReservedCode(p.code) &&
+            p.name.trim().toLowerCase() === trimmed.toLowerCase(),
+        )
+        .first()) ?? null
+    )
   }
 
   let product = await findLocal()
@@ -84,6 +192,16 @@ export async function getByCode(code: string): Promise<Product | null> {
       await syncProducts()
       product = await findLocal()
       if (product) return product
+
+      const remote = await getByCodeRemote(trimmed)
+      if (remote) {
+        try {
+          await db.products.put(remote)
+        } catch {
+          // ignore
+        }
+        return remote
+      }
     } catch {
       // offline
     }

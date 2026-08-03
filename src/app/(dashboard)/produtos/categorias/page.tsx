@@ -1,24 +1,25 @@
-import { createClient } from '@/lib/supabase/server'
 import { CategoryManager } from './category-manager'
 import { requireAdmin } from '@/lib/auth/roles'
+import { listCategoriesForCurrentStore } from '@/lib/queries/categories'
+
+export const dynamic = 'force-dynamic'
 
 export default async function CategoriasPage() {
-  await requireAdmin()
-  const supabase = await createClient()
-
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name')
+  const user = await requireAdmin()
+  const categories = await listCategoriesForCurrentStore(user)
 
   return (
-    <div className="space-y-6 max-w-xl">
+    <div className="max-w-xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">Categorias</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gerencie as categorias de produtos</p>
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
+          Categorias
+        </h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Organize os produtos da sua loja (ex.: Alimentos, Bebidas, Limpeza).
+        </p>
       </div>
 
-      <CategoryManager initialCategories={categories ?? []} />
+      <CategoryManager initialCategories={categories} />
     </div>
   )
 }

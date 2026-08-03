@@ -32,8 +32,22 @@ async function activeStoreId(
   supabase: ReturnType<typeof createClient>,
 ): Promise<string | null> {
   const { data, error } = await supabase.rpc('user_store_id')
-  if (error) return null
-  return (data as string | null) ?? null
+  if (!error && data) return data as string
+
+  // Fallback se a RPC falhar (JWT fraco)
+  try {
+    const { data: userData } = await supabase.auth.getUser()
+    const uid = userData.user?.id
+    if (!uid) return null
+    const { data: membership } = await supabase
+      .from('store_members')
+      .select('store_id')
+      .eq('user_id', uid)
+      .maybeSingle()
+    return membership?.store_id ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function syncProducts(): Promise<SyncResult> {
@@ -42,12 +56,10 @@ export async function syncProducts(): Promise<SyncResult> {
   const at = new Date().toISOString()
   const db = getDB()
 
+  // NUNCA zerar o catálogo se não souber a loja — só mantém o que já tem
   if (!storeId) {
-    await db.transaction('rw', db.products, db.syncMeta, async () => {
-      await db.products.clear()
-      await db.syncMeta.put({ key: 'products', lastSyncAt: at, count: 0 })
-    })
-    return { synced: 0, at }
+    const count = await db.products.count()
+    return { synced: count, at }
   }
 
   const { data, error } = await supabase
@@ -77,12 +89,10 @@ export async function syncCategories(): Promise<SyncResult> {
   const at = new Date().toISOString()
   const db = getDB()
 
+  // NUNCA zerar categorias se não souber a loja
   if (!storeId) {
-    await db.transaction('rw', db.categories, db.syncMeta, async () => {
-      await db.categories.clear()
-      await db.syncMeta.put({ key: 'categories', lastSyncAt: at, count: 0 })
-    })
-    return { synced: 0, at }
+    const count = await db.categories.count()
+    return { synced: count, at }
   }
 
   const { data, error } = await supabase

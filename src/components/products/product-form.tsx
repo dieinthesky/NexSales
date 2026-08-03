@@ -642,7 +642,12 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">Categoria</Label>
             <Select
-              defaultValue={product?.category_id ?? '__none__'}
+              defaultValue={
+                product?.category_id &&
+                categories.some((c) => c.id === product.category_id)
+                  ? product.category_id
+                  : '__none__'
+              }
               onValueChange={(v) => setValue('category_id', v === '__none__' ? '' : v)}
             >
               <SelectTrigger className="h-10 border-slate-200 dark:border-white/10">
@@ -657,6 +662,11 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
                 ))}
               </SelectContent>
             </Select>
+            {categories.length === 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Nenhuma categoria ainda. Abra Menu → Categorias e adicione (ex.: Alimentos).
+              </p>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2 border-t border-slate-100 dark:border-white/8">

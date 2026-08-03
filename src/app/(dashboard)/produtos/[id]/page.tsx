@@ -9,8 +9,9 @@ import {
   getAdminDataClient,
   resolveAdminContext,
 } from '@/lib/supabase/admin-data'
+import { listCategoriesForCurrentStore } from '@/lib/queries/categories'
 import { isElectron } from '@/lib/db/client'
-import type { Category, Product } from '@/types/database'
+import type { Product } from '@/types/database'
 
 export default async function EditarProdutoPage({
   params,
@@ -22,28 +23,25 @@ export default async function EditarProdutoPage({
   const { role, storeId, storeIds } = await resolveAdminContext(user)
 
   let product: Product | null = null
-  let categories: Category[] = []
 
-  // 1) RLS do usuário (conta padrão / JWT válido) — se enxergar o produto, pode editar
+  // 1) RLS do usuário
   const userClient = await createClient()
-  const [{ data: rlsProduct }, { data: rlsCategories }] = await Promise.all([
-    userClient.from('products').select('*').eq('id', id).maybeSingle(),
-    userClient.from('categories').select('*').order('name'),
-  ])
+  const { data: rlsProduct } = await userClient
+    .from('products')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
   if (rlsProduct) product = rlsProduct as Product
-  if (rlsCategories?.length) categories = rlsCategories as Category[]
 
-  // 2) Service role / admin client (desktop offline ou JWT fraco)
+  // 2) Service role / admin client
   if (!product) {
     const client = await getAdminDataClient()
-    const [{ data: productRow }, { data: categoryRows }] = await Promise.all([
-      client.from('products').select('*').eq('id', id).maybeSingle(),
-      client.from('categories').select('*').order('name'),
-    ])
+    const { data: productRow } = await client
+      .from('products')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
     product = (productRow as Product | null) ?? null
-    if (!categories.length) {
-      categories = (categoryRows as Category[] | null) ?? []
-    }
     if (
       product &&
       !canAccessStoreRow(role, storeId, product.store_id, storeIds)
@@ -67,23 +65,23 @@ export default async function EditarProdutoPage({
           track_stock: row.track_stock === true || row.track_stock === 1,
         }
         if (canAccessStoreRow(role, storeId, mapped.store_id, storeIds) || !storeId) {
-          // Sem storeId resolvido: confia no cache local (já filtrado no sync da loja)
           product = mapped
         }
       }
-      if (categories.length === 0) {
-        const { getCategories } = await import('@/lib/db/queries/products')
-        categories = getCategories()
-      }
     } catch {
-      // ignore sqlite fallback errors
+      // ignore
     }
   }
 
   if (!product) notFound()
 
-  if (role !== 'master' && storeId) {
-    categories = categories.filter((c) => !c.store_id || c.store_id === storeId)
+  // Cura categorias da loja + lista legível (não mostra UUID)
+  const categories = await listCategoriesForCurrentStore(user)
+
+  // Se o produto ainda apontar para id órfão, limpa no form após heal
+  const known = new Set(categories.map((c) => c.id))
+  if (product.category_id && !known.has(product.category_id)) {
+    product = { ...product, category_id: null }
   }
 
   const action = updateProduct.bind(null, id)

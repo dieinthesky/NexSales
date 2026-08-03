@@ -1,15 +1,11 @@
 import { ClipboardList } from 'lucide-react'
 import { requireAdmin } from '@/lib/auth/roles'
-import { createClient } from '@/lib/supabase/server'
+import { listCategoriesForCurrentStore } from '@/lib/queries/categories'
 import { VisitaInventario } from '@/components/products/visita-inventario'
 
 export default async function VisitaInventarioPage() {
-  await requireAdmin()
-  const supabase = await createClient()
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name')
+  const user = await requireAdmin()
+  const categories = await listCategoriesForCurrentStore(user)
 
   return (
     <div className="space-y-5">
@@ -26,7 +22,7 @@ export default async function VisitaInventarioPage() {
         </p>
       </div>
 
-      <VisitaInventario categories={categories ?? []} />
+      <VisitaInventario categories={categories} />
     </div>
   )
 }

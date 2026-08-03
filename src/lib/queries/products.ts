@@ -144,23 +144,20 @@ export async function getLowStock(): Promise<ProductWithCategory[]> {
 }
 
 export async function getCategories(): Promise<Category[]> {
+  const { listCategoriesForCurrentStore } = await import('@/lib/queries/categories')
+
   if (isElectron()) {
     try {
       const { getCategories: sqliteGet } = await import('@/lib/db/queries/products')
-      return sqliteGet()
+      const local = sqliteGet()
+      // SQLite vazio: recupera no servidor (cura a loja) e continua
+      if (local.length > 0) return local
     } catch (err) {
       console.warn('[electron] sqlite getCategories failed, falling back to Supabase:', err)
     }
   }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('categories')
-    .select('*')
-    .order('name')
-
-  if (error) throw new Error(error.message)
-  return (data ?? []) as Category[]
+  return listCategoriesForCurrentStore()
 }
 
 /** Escape characters that break PostgREST's `or()` filter syntax. */
