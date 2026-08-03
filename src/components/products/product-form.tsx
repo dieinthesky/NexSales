@@ -94,7 +94,12 @@ function CurrencyInput({ id, value, onChange, placeholder = '0,00', hasError, di
 interface ProductFormProps {
   product?: Product
   categories: Category[]
-  onSubmit: (formData: FormData) => Promise<{ error?: string } | undefined>
+  onSubmit: (
+    formData: FormData,
+  ) => Promise<
+    | { error?: string; success?: boolean; productId?: string; warning?: string }
+    | undefined
+  >
 }
 
 export function ProductForm({ product, categories, onSubmit }: ProductFormProps) {
@@ -280,22 +285,52 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
 
   function handleFormSubmit(data: ProductFormData) {
     startTransition(async () => {
-      const formData = new FormData()
-      Object.entries(data).forEach(([k, v]) => {
-        if (v !== null && v !== undefined) formData.set(k, String(v))
-      })
-      if (imageFile) formData.set('image', imageFile)
-      if (imageUrl) formData.set('image_url', imageUrl)
-      if (removeImage) formData.set('remove_image', '1')
+      try {
+        const formData = new FormData()
+        Object.entries(data).forEach(([k, v]) => {
+          if (v !== null && v !== undefined) formData.set(k, String(v))
+        })
+        if (imageFile) formData.set('image', imageFile)
+        if (imageUrl) formData.set('image_url', imageUrl)
+        if (removeImage) formData.set('remove_image', '1')
 
-      const result = await onSubmit(formData)
-      if (result?.error) {
-        if (result.error === 'Código de produto já existe.') {
-          setError('code', { message: result.error })
-          codeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-          codeInputRef.current?.focus()
+        const result = await onSubmit(formData)
+        if (result?.error) {
+          if (result.error === 'Código de produto já existe.') {
+            setError('code', { message: result.error })
+            codeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            codeInputRef.current?.focus()
+          }
+          toast.error(result.error)
+          return
         }
-        toast.error(result.error)
+        if (result && 'warning' in result && result.warning) {
+          toast.warning(String(result.warning))
+        }
+        if (result && 'success' in result && result.success) {
+          toast.success(product ? 'Produto atualizado' : 'Produto cadastrado')
+          // Força o PDV a buscar o catálogo de novo (IndexedDB)
+          try {
+            const { ensureProductsCached } = await import('@/lib/offline/products-repo')
+            // force immediately via sync
+            const { syncProducts } = await import('@/lib/offline/sync')
+            await syncProducts()
+            await ensureProductsCached()
+          } catch {
+            // best-effort no browser
+          }
+          router.push('/produtos')
+          router.refresh()
+          return
+        }
+        // updateProduct still redirects
+      } catch (err) {
+        // next redirect digest — ignore
+        const msg = err instanceof Error ? err.message : ''
+        if (msg.includes('NEXT_REDIRECT') || (err as { digest?: string })?.digest?.includes('NEXT_REDIRECT')) {
+          return
+        }
+        toast.error('Não foi possível salvar. Tente de novo.')
       }
     })
   }
@@ -358,7 +393,7 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
               </Label>
               <Input
                 id="name"
-                placeholder="Nome do produto"
+                placeholder="Ex.: Arroz Tipo 1 5kg · Coca-Cola 2L"
                 required
                 aria-invalid={!!errors.name}
                 className="h-10 border-slate-200 dark:border-white/10"
@@ -368,6 +403,11 @@ export function ProductForm({ product, categories, onSubmit }: ProductFormProps)
                   nameInputRef.current = el
                 }}
               />
+              {isNew && (
+                <p className="text-[11px] text-slate-400">
+                  Nome como na prateleira: marca + tamanho (evite só números).
+                </p>
+              )}
               {errors.name && (
                 <p className="text-red-500 text-xs">{errors.name.message}</p>
               )}

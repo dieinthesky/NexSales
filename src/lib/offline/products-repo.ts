@@ -16,11 +16,15 @@ import { getDB } from './db'
 import { syncProducts } from './sync'
 import type { Product } from '@/types/database'
 
-const DEFAULT_LIMIT = 10
+const DEFAULT_LIMIT = 20
+
+function isReservedCode(code: string | null | undefined): boolean {
+  return Boolean(code && code.startsWith('__'))
+}
 
 /**
- * Substring search by name OR code, case-insensitive. Only active products
- * with stock are returned — same filter the PDV always applied.
+ * Substring search by name OR code, case-insensitive.
+ * Produtos sem estoque também aparecem (aviso no PDV).
  */
 export async function searchProducts(
   query: string,
@@ -34,33 +38,54 @@ export async function searchProducts(
     .filter(
       (p) =>
         p.is_active &&
-        (!p.track_stock || p.stock_quantity > 0) &&
+        !isReservedCode(p.code) &&
         (p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)),
     )
-    .limit(limit)
+    .limit(limit * 3)
     .toArray()
 
-  // Stable, predictable ordering for the dropdown.
-  return matches.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  return matches
+    .sort((a, b) => {
+      const aStock = !a.track_stock || a.stock_quantity > 0 ? 0 : 1
+      const bStock = !b.track_stock || b.stock_quantity > 0 ? 0 : 1
+      if (aStock !== bStock) return aStock - bStock
+      return a.name.localeCompare(b.name, 'pt-BR')
+    })
+    .slice(0, limit)
 }
 
 /** Exact barcode/SKU lookup. Returns null when there's no active match. */
 export async function getByCode(code: string): Promise<Product | null> {
   const trimmed = code.trim()
-  if (!trimmed) return null
+  if (!trimmed || isReservedCode(trimmed)) return null
 
   const db = getDB()
-  let product = await db.products.where('code').equals(trimmed).first()
-  if (product?.is_active) return product
 
-  // Produto acabou de ser cadastrado / cache velho: sincroniza e tenta de novo.
+  async function findLocal(): Promise<Product | null> {
+    let product = await db.products.where('code').equals(trimmed).first()
+    if (product?.is_active && !isReservedCode(product.code)) return product
+
+    const all = await db.products
+      .filter(
+        (p) =>
+          p.is_active &&
+          !isReservedCode(p.code) &&
+          p.code.trim().toLowerCase() === trimmed.toLowerCase(),
+      )
+      .first()
+    return all ?? null
+  }
+
+  let product = await findLocal()
+  if (product) return product
+
   if (typeof navigator !== 'undefined' && navigator.onLine) {
     try {
       await syncProducts()
-      product = await db.products.where('code').equals(trimmed).first()
-      if (product?.is_active) return product
+      product = await findLocal()
+      if (product) return product
     } catch {
-      // offline/rede — segue o miss
+      // offline
     }
   }
 
@@ -80,28 +105,23 @@ export async function patchLocalProductImage(
   }
 }
 
-const STALE_MS = 5 * 60_000 // re-sync if cache is older than 5 minutes
-
 /**
- * First-load safety net: syncs products if the local cache is empty OR if the
- * last sync is older than STALE_MS (5 min). This ensures a newly created or
- * edited product shows up in the PDV without waiting for the 60-second periodic
- * sync. Best-effort — swallows errors since the PDV must keep working regardless.
+ * Sync no PDV: ao abrir Nova Venda, baixa o catálogo de novo (rede ok).
  */
-export async function ensureProductsCached(): Promise<void> {
+export async function ensureProductsCached(force = false): Promise<void> {
   try {
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const db = getDB()
     const count = await db.products.count()
-    if (count === 0) {
+    if (force || count === 0) {
       await syncProducts()
       return
     }
     const meta = await db.syncMeta.get('products')
-    if (!meta || Date.now() - new Date(meta.lastSyncAt).getTime() > STALE_MS) {
+    if (!meta || Date.now() - new Date(meta.lastSyncAt).getTime() > 45_000) {
       await syncProducts()
     }
   } catch {
-    // Best-effort; the empty-state UI handles a still-empty cache.
+    // Best-effort
   }
 }

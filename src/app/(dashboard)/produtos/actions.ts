@@ -183,10 +183,26 @@ async function resolveProductImageUrl(
       .upload(path, file, { contentType: file.type, upsert: true })
 
     if (uploadError) {
+      // Service role / fallback se JWT não puder gravar no bucket
+      try {
+        const { tryCreateServiceClient } = await import('@/lib/supabase/service')
+        const service = tryCreateServiceClient()
+        if (service) {
+          const retry = await service.storage
+            .from('product-photos')
+            .upload(path, file, { contentType: file.type, upsert: true })
+          if (!retry.error) {
+            const { data } = service.storage.from('product-photos').getPublicUrl(path)
+            return { url: data.publicUrl }
+          }
+        }
+      } catch {
+        // fall through
+      }
       return {
         url: currentUrl,
         error:
-          'Não foi possível enviar a foto. Rode o SQL de product-photos no Supabase e tente de novo.',
+          'Produto salvo, mas a foto não subiu. Se continuar, peça para liberar o armazenamento de fotos no sistema.',
       }
     }
 
@@ -329,6 +345,8 @@ export async function createProduct(formData: FormData) {
     .from('products')
     .insert({
       ...parsed.data,
+      code: parsed.data.code.trim(),
+      name: parsed.data.name.trim(),
       category_id: parsed.data.category_id || null,
       description: parsed.data.description || null,
       image_url: externalUrl,
@@ -342,14 +360,32 @@ export async function createProduct(formData: FormData) {
     return { error: error.message }
   }
 
+  let photoWarning: string | undefined
   if (imageFile instanceof File && imageFile.size > 0 && created?.id) {
-    const fd = new FormData()
-    fd.set('image', imageFile)
-    if (removeImage) fd.set('remove_image', String(removeImage))
-    const resolved = await resolveProductImageUrl(supabase, created.id, fd, externalUrl)
-    if (resolved.error) return { error: resolved.error }
-    if (resolved.url !== externalUrl) {
-      await supabase.from('products').update({ image_url: resolved.url }).eq('id', created.id)
+    try {
+      const fd = new FormData()
+      fd.set('image', imageFile)
+      if (removeImage) fd.set('remove_image', String(removeImage))
+      const resolved = await resolveProductImageUrl(supabase, created.id, fd, externalUrl)
+      if (resolved.error) {
+        // Produto já existe — não falha o cadastro por causa da foto
+        photoWarning = resolved.error
+      } else if (resolved.url !== externalUrl) {
+        await supabase.from('products').update({ image_url: resolved.url }).eq('id', created.id)
+        // atualiza path se desktop
+        if (isElectron() && resolved.url) {
+          try {
+            getDb()
+              .prepare(`UPDATE products SET image_url = ? WHERE id = ?`)
+              .run(resolved.url, created.id)
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch {
+      photoWarning =
+        'Produto cadastrado, mas a foto não foi enviada. Tente editar o produto e anexar de novo.'
     }
   }
 
@@ -367,8 +403,8 @@ export async function createProduct(formData: FormData) {
         )
         .run(
           created.id,
-          d.code,
-          d.name,
+          d.code.trim(),
+          d.name.trim(),
           d.description ?? null,
           d.sale_price,
           d.cost_price ?? 0,
@@ -388,8 +424,13 @@ export async function createProduct(formData: FormData) {
 
   revalidatePath('/produtos', 'layout')
   revalidatePath('/vendas/nova', 'layout')
-  // Cache-buster: força o servidor a re-renderizar a lista
-  redirect(`/produtos?novo=${created?.id ?? '1'}`)
+  revalidatePath('/produtos/categorias')
+  // Sem redirect(): no Next, redirect em action com FormData/foto costuma derrubar a página
+  return {
+    success: true as const,
+    productId: created!.id,
+    warning: photoWarning,
+  }
 }
 
 export async function updateProduct(id: string, formData: FormData) {

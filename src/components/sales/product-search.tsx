@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect, useRef, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
@@ -37,10 +37,10 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
   const debouncedQuery = useDebounce(query, 300)
   const didStageRef = useRef(false)
 
-  // Auto-focus search on mount + warm the local cache.
+  // Auto-focus search on mount + always refresh catalog when online
   useEffect(() => {
     searchRef.current?.focus()
-    void ensureProductsCached()
+    void ensureProductsCached(true)
   }, [])
 
   // Reset highlight whenever results change.
@@ -490,7 +490,7 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
 
       {!loading && !scanning && !staged && query && results.length === 0 && (
         <p className={`px-1 text-sm ${isCashier ? 'text-slate-500' : 'text-slate-400'}`}>
-          Nenhum produto encontrado em estoque.
+          Nenhum produto com esse código/nome. Confira o cadastro ou digite o nome.
         </p>
       )}
     </div>

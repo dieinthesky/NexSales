@@ -32,6 +32,7 @@ export async function createCategory(name: string) {
 
   revalidatePath('/produtos/categorias')
   revalidatePath('/produtos')
+  revalidatePath('/produtos/novo')
   return { success: true, category: data }
 }
 

@@ -62,9 +62,11 @@ describe('searchProducts', () => {
     expect(results[0].name).toBe('Água Mineral')
   })
 
-  it('excludes inactive products and out-of-stock products', async () => {
+  it('excludes inactive; shows out-of-stock by name (after stock with qty)', async () => {
     expect(await searchProducts('Inativo')).toHaveLength(0)
-    expect(await searchProducts('Sem Estoque')).toHaveLength(0)
+    const out = await searchProducts('Sem Estoque')
+    expect(out).toHaveLength(1)
+    expect(out[0].stock_quantity).toBe(0)
   })
 
   it('includes untracked products even when stock is 0', async () => {

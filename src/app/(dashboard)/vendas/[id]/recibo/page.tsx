@@ -13,16 +13,19 @@ export default async function ReceiptPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  // requireAuth (não getUser) — no Electron o cookie offline precisa ser aceito
   const user = await requireAuth()
 
   const { id } = await params
   const sale = await getSaleById(id)
   if (!sale) notFound()
 
-  if (user.role !== 'admin' && toBRISO(sale.created_at) !== todayBRISO()) {
+  if (
+    user.role !== 'admin' &&
+    user.role !== 'master' &&
+    toBRISO(sale.created_at) !== todayBRISO()
+  ) {
     notFound()
   }
 
-  return <ReceiptView sale={sale} />
+  return <ReceiptView sale={sale} storeName={user.storeName || 'CaixaDoBairro'} />
 }

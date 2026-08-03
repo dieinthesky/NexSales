@@ -68,12 +68,13 @@ function buildReceiptHtml(data: PrintReceiptData): string {
     .map((item) => {
       const lineTotal = item.unit_price * item.quantity
       return `
-        <tr>
-          <td class="name">${escapeHtml(item.name)}</td>
-          <td class="num">${item.quantity}</td>
-          <td class="num">${escapeHtml(formatCurrency(item.unit_price))}</td>
-          <td class="num strong">${escapeHtml(formatCurrency(lineTotal))}</td>
-        </tr>`
+        <div style="margin-bottom:6px">
+          <div class="item-name">${escapeHtml(item.name)}</div>
+          <div class="line">
+            <span>${item.quantity} x ${escapeHtml(formatCurrency(item.unit_price))}</span>
+            <span><strong>${escapeHtml(formatCurrency(lineTotal))}</strong></span>
+          </div>
+        </div>`
     })
     .join('')
 
@@ -103,20 +104,17 @@ function buildReceiptHtml(data: PrintReceiptData): string {
     width: 80mm;
   }
   .center { text-align: center; }
-  .store { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .store { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; }
+  .sub { font-size: 10px; color: #333; margin-top: 2px; }
   .sep { border-top: 1px dashed #000; margin: 6px 0; }
-  .meta p { margin: 2px 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 10px; }
-  thead th { border-bottom: 1px dashed #000; padding-bottom: 2px; text-align: left; }
-  thead th.num { text-align: right; }
-  td { padding: 2px 0; vertical-align: top; }
-  td.num { text-align: right; white-space: nowrap; }
-  td.name { padding-right: 4px; word-break: break-word; }
-  td.strong { font-weight: 700; }
-  .total { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; }
-  .pay { font-size: 10px; margin-top: 2px; }
+  .meta p { margin: 2px 0; font-size: 10px; }
+  .item-name { font-weight: 700; text-transform: uppercase; font-size: 11px; }
+  .item-code { font-size: 9px; color: #444; }
+  .line { display: flex; justify-content: space-between; font-size: 11px; margin-top: 2px; }
+  .total { display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; }
+  .pay { font-size: 11px; margin-top: 4px; }
   .notes { font-size: 10px; }
-  .thanks { text-align: center; font-size: 10px; margin-top: 4px; }
+  .thanks { text-align: center; font-size: 11px; font-weight: 700; margin-top: 6px; }
   .provisional {
     text-align: center;
     border: 1px dashed #000;
@@ -131,23 +129,19 @@ function buildReceiptHtml(data: PrintReceiptData): string {
 <body>
   ${provisionalBanner}
   <div class="center"><span class="store">${escapeHtml(storeName)}</span></div>
+  <div class="center sub">CUPOM NAO FISCAL</div>
   <div class="sep"></div>
   <div class="meta">
     <p><strong>Data:</strong> ${escapeHtml(dateLabel)}</p>
   </div>
   <div class="sep"></div>
-  <table>
-    <thead>
-      <tr><th>Item</th><th class="num">Qtd</th><th class="num">Unit.</th><th class="num">Total</th></tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>
+  ${rows}
   <div class="sep"></div>
   <div class="total"><span>TOTAL</span><span>${escapeHtml(formatCurrency(data.total))}</span></div>
   <div class="pay"><strong>Pagamento:</strong> ${escapeHtml(data.paymentLabel)}</div>
   ${notesBlock}
   <div class="sep"></div>
-  <p class="thanks">Obrigado pela preferência!</p>
+  <p class="thanks">Obrigado e volte sempre!</p>
   <script>
     window.addEventListener('load', function () {
       window.focus();

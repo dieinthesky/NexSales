@@ -2,35 +2,43 @@ import { formatCurrency, formatDate, PAYMENT_LABELS } from './format'
 import type { SaleWithItems } from '@/types/database'
 
 /**
- * Plain-text version of the receipt, suitable for WhatsApp / Clipboard.
- * The HTML version is rendered separately by the printable receipt page.
+ * Texto plano do cupom (WhatsApp / copiar) — estilo mercado.
  */
 export function buildReceiptText(
   sale: SaleWithItems,
-  storeName = 'VendasApp',
+  storeName = 'CaixaDoBairro',
 ): string {
   const lines: string[] = []
   const sep = '------------------------------'
 
   lines.push(storeName.toUpperCase())
+  lines.push('CUPOM NAO FISCAL')
   lines.push(sep)
-  lines.push(`Venda: ${shortSaleId(sale.id)}`)
+  lines.push(`Cupom: ${shortSaleId(sale.id)}`)
   lines.push(`Data:  ${formatDate(sale.created_at)}`)
+  if (sale.customers?.full_name) {
+    lines.push(`Cliente: ${sale.customers.full_name}`)
+  }
   lines.push(sep)
-  lines.push('ITEM            QTD   UNIT.   TOTAL')
+  lines.push('PRODUTO')
+  lines.push('QTD x UNIT.                  TOTAL')
 
   for (const item of sale.sale_items) {
-    const name = truncate(item.products?.name ?? 'Produto removido', 18)
-    const qty = String(item.quantity).padStart(3, ' ')
-    const unit = formatCurrency(item.unit_price).padStart(8, ' ')
-    const sub = formatCurrency(item.subtotal).padStart(9, ' ')
-    lines.push(`${name.padEnd(18, ' ')} ${qty} ${unit}${sub}`)
-    lines.push(`  Cód: ${item.products?.code ?? '—'}`)
+    const name = (item.products?.name ?? item.item_description ?? 'Produto').toUpperCase()
+    const code = item.products?.code
+    lines.push(name)
+    if (code) lines.push(`  Cod ${code}`)
+    const qty = item.quantity
+    const unit = formatCurrency(item.unit_price)
+    const sub = formatCurrency(item.subtotal)
+    lines.push(`${qty} x ${unit}`.padEnd(22, ' ') + sub.padStart(10, ' '))
   }
 
   lines.push(sep)
   lines.push(`TOTAL: ${formatCurrency(sale.total_amount)}`)
-  lines.push(`Pagamento: ${PAYMENT_LABELS[sale.payment_method]}`)
+  lines.push(
+    `Pagamento: ${PAYMENT_LABELS[sale.payment_method] ?? sale.payment_method}`,
+  )
 
   if (sale.notes) {
     lines.push(sep)
@@ -38,17 +46,11 @@ export function buildReceiptText(
   }
 
   lines.push(sep)
-  lines.push('Obrigado pela preferência!')
+  lines.push('Obrigado e volte sempre!')
 
   return lines.join('\n')
 }
 
-/** Last 8 chars of the UUID, uppercased — good enough as a human reference. */
 export function shortSaleId(id: string): string {
   return id.replace(/-/g, '').slice(-8).toUpperCase()
-}
-
-function truncate(value: string, max: number): string {
-  if (value.length <= max) return value
-  return value.slice(0, max - 1) + '…'
 }

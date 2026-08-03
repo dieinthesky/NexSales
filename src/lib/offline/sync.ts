@@ -57,7 +57,9 @@ export async function syncProducts(): Promise<SyncResult> {
     .eq('store_id', storeId)
 
   if (error) throw error
-  const rows = (data ?? []) as CachedProduct[]
+  const rows = ((data ?? []) as CachedProduct[]).filter(
+    (p) => p.code && !String(p.code).startsWith('__'),
+  )
 
   await db.transaction('rw', db.products, db.syncMeta, async () => {
     await db.products.clear()
