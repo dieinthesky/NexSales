@@ -67,13 +67,31 @@ export async function searchProducts(
 
       const remote = await searchProductsRemote(q, limit)
       if (remote.length > 0) {
-        // injeta no cache local
         try {
           await db.products.bulkPut(remote)
         } catch {
           // ignore
         }
         return remote
+      }
+
+      // API server (full store catalog no exe)
+      const res = await fetch(`/api/products/lookup?q=${encodeURIComponent(q)}`, {
+        credentials: 'same-origin',
+      })
+      if (res.ok) {
+        const body = (await res.json()) as { products?: Product[] }
+        const apiRows = sortMatches(
+          (body.products ?? []).filter((p) => p.code && !isReservedCode(p.code)),
+        ).slice(0, limit)
+        if (apiRows.length > 0) {
+          try {
+            await db.products.bulkPut(apiRows)
+          } catch {
+            // ignore
+          }
+          return apiRows
+        }
       }
     } catch {
       // offline / falha
@@ -171,7 +189,6 @@ export async function getByCode(code: string): Promise<Product | null> {
       .first()
     if (all) return all
 
-    // Nome exato no cache
     return (
       (await db.products
         .filter(
@@ -202,12 +219,49 @@ export async function getByCode(code: string): Promise<Product | null> {
         }
         return remote
       }
+
+      // API do servidor (service role no Electron) — espelha o site
+      const viaApi = await lookupViaApi(trimmed)
+      if (viaApi) {
+        try {
+          await db.products.put(viaApi)
+        } catch {
+          // ignore
+        }
+        return viaApi
+      }
     } catch {
       // offline
     }
   }
 
   return null
+}
+
+async function lookupViaApi(q: string): Promise<Product | null> {
+  try {
+    const res = await fetch(`/api/products/lookup?q=${encodeURIComponent(q)}`, {
+      credentials: 'same-origin',
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as { products?: Product[] }
+    const rows = (body.products ?? []).filter((p) => p.code && !isReservedCode(p.code))
+    if (rows.length === 0) return null
+    const exactCode = rows.find(
+      (p) => p.code.trim().toLowerCase() === q.toLowerCase(),
+    )
+    if (exactCode) return exactCode
+    const exactName = rows.find(
+      (p) => p.name.trim().toLowerCase() === q.toLowerCase(),
+    )
+    if (exactName) return exactName
+    if (rows.length === 1) return rows[0]
+    // Código digitado 1 dígito errado: aceita se só 1 candidato
+    if (rows.length > 0 && /^\d+$/.test(q)) return rows[0]
+    return null
+  } catch {
+    return null
+  }
 }
 
 /** Atualiza a foto no cache local (PDV) sem esperar o sync. */
