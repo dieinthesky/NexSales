@@ -26,6 +26,8 @@ export interface ExternalBarcodeResult {
   name: string
   description: string | null
   imageUrl?: string | null
+  /** Trecho de categoria das bases (ex.: Cosmos category) — para inferir Alimentos/Higiene… */
+  categoryHint?: string | null
 }
 
 interface CosmosResponse {
@@ -116,6 +118,8 @@ async function lookupCosmos(code: string): Promise<ExternalBarcodeResult | null>
     name: data.description.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
     imageUrl: data.thumbnail || data.image || null,
+    categoryHint:
+      data.category?.description ?? data.gpc?.description ?? null,
   }
 }
 
@@ -151,6 +155,7 @@ async function lookupOpenFactsFamily(
     name: name.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
     imageUrl: p.image_front_url || p.image_url || null,
+    categoryHint: p.categories?.split(',')[0]?.trim() ?? null,
   }
 }
 
@@ -190,6 +195,7 @@ async function lookupUpcItemDb(code: string): Promise<ExternalBarcodeResult | nu
     name: item.title.trim(),
     description: descriptionParts.length > 0 ? descriptionParts.join(' · ') : null,
     imageUrl: item.images?.[0] || null,
+    categoryHint: item.category ?? null,
   }
 }
 

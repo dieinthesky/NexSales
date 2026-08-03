@@ -795,14 +795,6 @@ export async function createProductFromVisit(input: {
     return { error: parsed.error.issues[0].message }
   }
 
-  const user = await getCurrentUser()
-  if (!user?.storeId) {
-    return { error: 'Sua conta não está vinculada a uma loja.' }
-  }
-
-  const supabase = await createClient()
-  const imageUrl = input.image_url?.trim() || null
-
   const { data, error } = await supabase
     .from('products')
     .insert({
@@ -826,3 +818,270 @@ export async function createProductFromVisit(input: {
   revalidatePath('/vendas/nova')
   return { success: true, product: data }
 }
+
+// ─── Enriquecimento em lote (nome + categoria pelo código de barras) ─────────
+
+export interface EnrichBatchResult {
+  done: boolean
+  nextOffset: number
+  totalEligible: number
+  processedInBatch: number
+  updated: number
+  notFound: number
+  skipped: number
+  errors: number
+  samples: { code: string; oldName: string; newName: string; category: string | null }[]
+  message?: string
+}
+
+const ENRICH_BATCH = 5
+
+/**
+ * Mega pesquisa: para cada produto com EAN (8–14 dígitos), busca nome/categoria
+ * nas bases (Cosmos / Open Facts) e atualiza.
+ *
+ * Processa poucos por chamada (timeout Vercel). O botão no cliente chama em loop.
+ * Não altera preço de venda, custo nem estoque.
+ */
+export async function enrichProductsByBarcodeBatch(
+  offset = 0,
+): Promise<EnrichBatchResult> {
+  const empty: EnrichBatchResult = {
+    done: true,
+    nextOffset: 0,
+    totalEligible: 0,
+    processedInBatch: 0,
+    updated: 0,
+    notFound: 0,
+    skipped: 0,
+    errors: 0,
+    samples: [],
+  }
+
+  try {
+    const user = await getCurrentUser()
+    if (!user || !isAdmin(user)) {
+      return { ...empty, message: 'Sem permissão.' }
+    }
+
+    const ctx = await resolveAdminContext(user)
+    const storeId = ctx.storeId
+    if (!storeId && ctx.role !== 'master') {
+      return { ...empty, message: 'Conta sem loja vinculada.' }
+    }
+    if (!storeId) {
+      return {
+        ...empty,
+        message: 'Escolha a loja do cliente (seletor de loja) antes de enriquecer.',
+      }
+    }
+
+    const admin = await getAdminDataClient()
+    const { inferCategoryName, DEFAULT_STORE_CATEGORIES } = await import(
+      '@/lib/products/infer-category'
+    )
+
+    for (const name of DEFAULT_STORE_CATEGORIES) {
+      await admin
+        .from('categories')
+        .upsert({ name, store_id: storeId }, { onConflict: 'store_id,name' })
+    }
+
+    const { data: catRows } = await admin
+      .from('categories')
+      .select('id, name')
+      .eq('store_id', storeId)
+
+    const categoryByName = new Map(
+      (catRows ?? []).map((c) => [c.name, c.id] as const),
+    )
+
+    const { data: allRows, error: listErr } = await admin
+      .from('products')
+      .select('id, code, name, description, image_url, category_id, store_id')
+      .eq('is_active', true)
+      .eq('store_id', storeId)
+      .not('code', 'is', null)
+      .order('code')
+
+    if (listErr) {
+      return { ...empty, message: listErr.message }
+    }
+
+    const eligible = (allRows ?? []).filter((p) => {
+      const code = (p.code ?? '').trim()
+      if (!code || code.startsWith('__')) return false
+      return /^\d{8,14}$/.test(code)
+    })
+
+    const totalEligible = eligible.length
+    const slice = eligible.slice(offset, offset + ENRICH_BATCH)
+
+    if (slice.length === 0) {
+      revalidatePath('/produtos')
+      revalidatePath('/vendas/nova')
+      return {
+        ...empty,
+        done: true,
+        nextOffset: offset,
+        totalEligible,
+        message:
+          totalEligible === 0
+            ? 'Nenhum produto com código de barras numérico (EAN) nesta loja.'
+            : 'Concluído.',
+      }
+    }
+
+    let updated = 0
+    let notFound = 0
+    let skipped = 0
+    let errors = 0
+    const samples: EnrichBatchResult['samples'] = []
+
+    for (const product of slice) {
+      if (!canAccessStoreRow(ctx.role, storeId, product.store_id, ctx.storeIds)) {
+        skipped++
+        continue
+      }
+
+      const code = product.code!.trim()
+      try {
+        const { data: cached } = await admin
+          .from('barcode_cache')
+          .select('source, name, description')
+          .eq('code', code)
+          .maybeSingle()
+
+        let externalName: string | null = null
+        let externalDesc: string | null = null
+        let externalImage: string | null = null
+        let categoryHint: string | null = null
+
+        if (cached && cached.source !== 'not_found' && cached.name?.trim()) {
+          externalName = cached.name.trim()
+          externalDesc = cached.description
+          externalImage = await lookupExternalProductImage(code)
+          categoryHint = cached.description
+        } else {
+          const hit = await lookupExternalBarcode(code)
+          if (hit) {
+            externalName = hit.name
+            externalDesc = hit.description
+            externalImage = hit.imageUrl ?? null
+            categoryHint = hit.categoryHint ?? hit.description
+            await admin.from('barcode_cache').upsert(
+              {
+                code,
+                source: hit.source,
+                name: hit.name,
+                description: hit.description,
+              },
+              { onConflict: 'code' },
+            )
+          } else {
+            await admin.from('barcode_cache').upsert(
+              { code, source: 'not_found', name: null, description: null },
+              { onConflict: 'code' },
+            )
+          }
+        }
+
+        if (!externalName) {
+          notFound++
+          continue
+        }
+
+        const inferred = inferCategoryName(
+          externalName,
+          externalDesc,
+          categoryHint,
+          product.name,
+        )
+        const categoryId = inferred
+          ? (categoryByName.get(inferred) ?? null)
+          : ((product.category_id as string | null) ?? null)
+
+        const patch: {
+          name: string
+          description?: string | null
+          image_url?: string | null
+          category_id?: string | null
+        } = {
+          name: externalName,
+        }
+
+        if (externalDesc && !product.description) {
+          patch.description = externalDesc
+        }
+        if (externalImage && !product.image_url) {
+          patch.image_url = externalImage
+        }
+        if (categoryId) {
+          patch.category_id = categoryId
+        }
+
+        const nameSame =
+          product.name.trim().toLowerCase() === externalName.trim().toLowerCase()
+        const catSame = (product.category_id as string | null) === categoryId
+        if (nameSame && catSame && !patch.image_url && !patch.description) {
+          skipped++
+          continue
+        }
+
+        const { error: upErr } = await admin
+          .from('products')
+          .update(patch)
+          .eq('id', product.id)
+          .eq('store_id', storeId)
+
+        if (upErr) {
+          errors++
+          continue
+        }
+
+        updated++
+        if (samples.length < 8) {
+          samples.push({
+            code,
+            oldName: product.name,
+            newName: externalName,
+            category: inferred,
+          })
+        }
+      } catch {
+        errors++
+      }
+    }
+
+    const nextOffset = offset + slice.length
+    const done = nextOffset >= totalEligible
+
+    if (done) {
+      revalidatePath('/produtos')
+      revalidatePath('/produtos/visita')
+      revalidatePath('/vendas/nova')
+      revalidatePath('/dashboard')
+    }
+
+    return {
+      done,
+      nextOffset,
+      totalEligible,
+      processedInBatch: slice.length,
+      updated,
+      notFound,
+      skipped,
+      errors,
+      samples,
+      message: done
+        ? 'Catálogo atualizado com o que as bases encontraram.'
+        : undefined,
+    }
+  } catch (e) {
+    return {
+      ...empty,
+      message: e instanceof Error ? e.message : 'Falha ao enriquecer catálogo.',
+    }
+  }
+}
+

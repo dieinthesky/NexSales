@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
 import { ProductActions } from '@/components/products/product-actions'
-import { getCategories, getProductsPaged, type StockFilter } from '@/lib/queries/products'
+import { EnrichCatalogButton } from '@/components/products/enrich-catalog-button'
+import { getCategories, getProductsPaged, getInventoryValuation, type StockFilter } from '@/lib/queries/products'
 import { formatCurrency } from '@/lib/utils/format'
 import { requireAdmin } from '@/lib/auth/roles'
 import { tryQuery } from '@/lib/supabase/try-query'
@@ -98,9 +99,22 @@ export default async function ProdutosPage({
   const page = sp.page ? Math.max(1, parseInt(sp.page, 10) || 1) : 1
 
   const EMPTY_PRODUCTS = { items: [], total: 0, page: 1, pageSize: 20, totalPages: 0 }
-  const [{ data: productsResult, offline }, { data: categories }] = await Promise.all([
+  const EMPTY_VALUATION = {
+    productCount: 0,
+    unitsInStock: 0,
+    potentialRevenue: 0,
+    investedAtCost: 0,
+    potentialGrossProfit: 0,
+    missingCostCount: 0,
+  }
+  const [
+    { data: productsResult, offline },
+    { data: categories },
+    { data: valuation },
+  ] = await Promise.all([
     tryQuery(() => getProductsPaged({ search, categoryId, stock, page }), EMPTY_PRODUCTS),
     tryQuery(() => getCategories(), []),
+    tryQuery(() => getInventoryValuation(), EMPTY_VALUATION),
   ])
   const { items: products, total, totalPages, pageSize } = productsResult
 
@@ -123,13 +137,60 @@ export default async function ProdutosPage({
             {search ? ` para "${search}"` : ''}
           </p>
         </div>
-        <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-sm">
-          <Link href="/produtos/novo">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Novo Produto
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
+          <EnrichCatalogButton />
+          <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-sm">
+            <Link href="/produtos/novo">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Novo Produto
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      {!search && !categoryId && stock === 'all' && valuation.productCount > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Se vender tudo (preço de venda)
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+              {formatCurrency(valuation.potentialRevenue)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {valuation.unitsInStock} un em estoque
+            </p>
+          </Card>
+          <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Valor investido (custo × estoque)
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-slate-900 dark:text-slate-100">
+              {formatCurrency(valuation.investedAtCost)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {valuation.missingCostCount > 0
+                ? `${valuation.missingCostCount} produtos sem custo — preencha a coluna Custo`
+                : 'Todos com custo cadastrado'}
+            </p>
+          </Card>
+          <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm p-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              Lucro bruto potencial
+            </p>
+            <p className="mt-1 text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+              {valuation.missingCostCount >= valuation.productCount && valuation.investedAtCost <= 0
+                ? '—'
+                : formatCurrency(valuation.potentialGrossProfit)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              {valuation.missingCostCount >= valuation.productCount && valuation.investedAtCost <= 0
+                ? 'Cadastre o custo dos produtos para estimar o lucro'
+                : 'Venda potencial − custo em estoque'}
+            </p>
+          </Card>
+        </div>
+      )}
 
       <Card className="border-slate-200/80 dark:border-white/8 dark:bg-slate-800/60 shadow-sm">
         {/* Filters bar */}

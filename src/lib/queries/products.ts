@@ -256,3 +256,81 @@ export async function getCategories(): Promise<Category[]> {
 
   return listCategoriesForCurrentStore()
 }
+
+export interface InventoryValuation {
+  productCount: number
+  unitsInStock: number
+  /** Σ (estoque × preço de venda) — se vender tudo no preço atual */
+  potentialRevenue: number
+  /** Σ (estoque × custo) — só conta linhas com custo > 0 */
+  investedAtCost: number
+  /** potentialRevenue − investedAtCost (custo zero não entra bem no lucro real) */
+  potentialGrossProfit: number
+  /** Quantos produtos ainda têm custo 0 (impede “valor investido” real) */
+  missingCostCount: number
+}
+
+/** Totais do estoque da loja atual (venda potencial vs investido em custo). */
+export async function getInventoryValuation(): Promise<InventoryValuation> {
+  const empty: InventoryValuation = {
+    productCount: 0,
+    unitsInStock: 0,
+    potentialRevenue: 0,
+    investedAtCost: 0,
+    potentialGrossProfit: 0,
+    missingCostCount: 0,
+  }
+
+  try {
+    const { getAppDataContext } = await import('@/lib/supabase/app-data')
+    const { client, storeId } = await getAppDataContext()
+    if (!storeId) return empty
+
+    let q = client
+      .from('products')
+      .select('sale_price, cost_price, stock_quantity, track_stock')
+      .eq('is_active', true)
+      .eq('store_id', storeId)
+
+    const { data, error } = await q
+    if (error || !data) return empty
+
+    let productCount = 0
+    let unitsInStock = 0
+    let potentialRevenue = 0
+    let investedAtCost = 0
+    let missingCostCount = 0
+
+    for (const p of data) {
+      productCount++
+      const qty = Number(p.stock_quantity) || 0
+      const sale = Number(p.sale_price) || 0
+      const cost = Number(p.cost_price) || 0
+      const tracked = p.track_stock !== false
+
+      if (tracked && qty > 0) {
+        unitsInStock += qty
+        potentialRevenue += qty * sale
+        if (cost > 0) {
+          investedAtCost += qty * cost
+        } else {
+          missingCostCount++
+        }
+      } else if (cost <= 0) {
+        missingCostCount++
+      }
+    }
+
+    return {
+      productCount,
+      unitsInStock,
+      potentialRevenue,
+      investedAtCost,
+      potentialGrossProfit: potentialRevenue - investedAtCost,
+      missingCostCount,
+    }
+  } catch {
+    return empty
+  }
+}
+
