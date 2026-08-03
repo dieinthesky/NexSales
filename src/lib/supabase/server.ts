@@ -3,30 +3,18 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/types/database'
 
-// Web: curto para o tryQuery + fallback SQLite no desktop offline não travar a UI
+/** Páginas: falha em 3s quando offline → SQLite/cookie sem travar. */
 const QUERY_TIMEOUT_MS = 3_000
 
-// Desktop (.exe) e sync: token fraco + latência normal — 3s causava falso offline
-const ELECTRON_TIMEOUT_MS = 25_000
+/** Sync / venda online com mais fôlego. */
 const SYNC_TIMEOUT_MS = 30_000
 
-function isElectronServer(): boolean {
-  return process.env.ELECTRON_APP === 'true'
-}
-
-/**
- * Sync / operações pesadas (venda, pull completo).
- */
 export async function createSyncClient() {
-  return _makeClient(isElectronServer() ? ELECTRON_TIMEOUT_MS : SYNC_TIMEOUT_MS)
+  return _makeClient(SYNC_TIMEOUT_MS)
 }
 
-/**
- * Client padrão de páginas. No Electron usa o timeout longo para parar de
- * abortar listagens e recibos a cada 3s.
- */
 export async function createClient() {
-  return _makeClient(isElectronServer() ? ELECTRON_TIMEOUT_MS : QUERY_TIMEOUT_MS)
+  return _makeClient(QUERY_TIMEOUT_MS)
 }
 
 async function _makeClient(timeoutMs: number) {
@@ -52,7 +40,7 @@ async function _makeClient(timeoutMs: number) {
               cookieStore.set(name, value, options),
             )
           } catch {
-            // Server Component context — cookies set by middleware
+            // Server Component
           }
         },
       },

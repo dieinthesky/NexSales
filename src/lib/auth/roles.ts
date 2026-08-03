@@ -37,8 +37,32 @@ function normalizeRole(role: string | null | undefined): UserRole {
 export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const cookieStore = await cookies()
 
-  // AbortController gives us a hard 3s ceiling — avoids the hanging-promise
-  // accumulation that causes blank screens in Electron when the app is offline.
+  const offlineCookie = cookieStore.get(OFFLINE_COOKIE_NAME)
+  const offlineSession = offlineCookie
+    ? readOfflineSession(offlineCookie.value)
+    : null
+
+  function fromOfflineCookie() {
+    if (!offlineSession) return null
+    const email = offlineSession.email
+    return {
+      id: offlineSession.userId,
+      email,
+      role: normalizeRole(offlineSession.role),
+      storeId: offlineSession.storeId ?? null,
+      storeName: null as string | null,
+      firstName: null as string | null,
+      lastName: null as string | null,
+      displayName: displayName({ firstName: null, lastName: null, email }),
+      initials: initials({ firstName: null, lastName: null, email }),
+    }
+  }
+
+  // Desktop offline-first: cookie assinada sem rede (PDV não espera Supabase)
+  if (process.env.ELECTRON_APP === 'true' && offlineSession) {
+    return fromOfflineCookie()
+  }
+
   const AUTH_TIMEOUT_MS = 3_000
   const controller = new AbortController()
   const abortTimer = setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS)
@@ -61,7 +85,7 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
               cookieStore.set(name, value, options),
             )
           } catch {
-            // Server Component context — cookies set by middleware
+            // Server Component
           }
         },
       },
@@ -70,81 +94,103 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
 
   let user: Awaited<ReturnType<typeof supabaseWithTimeout.auth.getUser>>['data']['user'] = null
 
-  // Always try Supabase session first (web and Electron). Short timeout so offline
-  // cookie kicks in quickly when the network is down.
   try {
     const { data } = await supabaseWithTimeout.auth.getUser()
     user = data.user
   } catch {
-    // AbortError (timeout) or network failure — fall through to offline cookie
+    // timeout / rede
   } finally {
     clearTimeout(abortTimer)
   }
 
   if (user) {
-    const supabase = await createClient()
-    const [{ data: roleRow }, { data: profileRow }, { data: membership }] = await Promise.all([
-      supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle(),
-      supabase
-        .from('profiles')
-        .select('first_name, last_name')
-        .eq('user_id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('store_members')
-        .select('store_id')
-        .eq('user_id', user.id)
-        .maybeSingle(),
-    ])
+    try {
+      const supabase = await createClient()
+      const profilePromise = Promise.all([
+        supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('first_name, last_name')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('store_members')
+          .select('store_id')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+      ])
 
-    const role = normalizeRole(roleRow?.role)
-    const firstName = profileRow?.first_name ?? null
-    const lastName = profileRow?.last_name ?? null
-    const email = user.email ?? null
-    const storeId = membership?.store_id ?? null
-    let storeName: string | null = null
-    if (storeId) {
-      const { data: storeRow } = await supabase
-        .from('stores')
-        .select('name')
-        .eq('id', storeId)
-        .maybeSingle()
-      storeName = storeRow?.name ?? null
-    }
+      // Offline com JWT stale na cookie: não espera 3s×N nas roles
+      const profileRace = await Promise.race([
+        profilePromise.then((rows) => ({ ok: true as const, rows })),
+        new Promise<{ ok: false }>((r) => setTimeout(() => r({ ok: false }), 2_000)),
+      ])
 
-    return {
-      id: user.id,
-      email,
-      role,
-      storeId,
-      storeName,
-      firstName,
-      lastName,
-      displayName: displayName({ firstName, lastName, email }),
-      initials: initials({ firstName, lastName, email }),
-    }
-  }
-
-  const offlineCookie = cookieStore.get(OFFLINE_COOKIE_NAME)
-  if (offlineCookie) {
-    const session = readOfflineSession(offlineCookie.value)
-    if (session) {
-      const email = session.email
-      return {
-        id: session.userId,
-        email,
-        role: normalizeRole(session.role),
-        storeId: session.storeId ?? null,
-        storeName: null,
-        firstName: null,
-        lastName: null,
-        displayName: displayName({ firstName: null, lastName: null, email }),
-        initials: initials({ firstName: null, lastName: null, email }),
+      if (!profileRace.ok) {
+        // Prefer cookie offline (tem role/store) se existir
+        const off = fromOfflineCookie()
+        if (off) return off
+        return {
+          id: user.id,
+          email: user.email ?? null,
+          role: 'employee',
+          storeId: null,
+          storeName: null,
+          firstName: null,
+          lastName: null,
+          displayName: displayName({
+            firstName: null,
+            lastName: null,
+            email: user.email ?? null,
+          }),
+          initials: initials({
+            firstName: null,
+            lastName: null,
+            email: user.email ?? null,
+          }),
+        }
       }
+
+      const [{ data: roleRow }, { data: profileRow }, { data: membership }] =
+        profileRace.rows
+
+      const role = normalizeRole(roleRow?.role)
+      const firstName = profileRow?.first_name ?? null
+      const lastName = profileRow?.last_name ?? null
+      const email = user.email ?? null
+      const storeId = membership?.store_id ?? offlineSession?.storeId ?? null
+      let storeName: string | null = null
+      if (storeId) {
+        try {
+          const { data: storeRow } = await supabase
+            .from('stores')
+            .select('name')
+            .eq('id', storeId)
+            .maybeSingle()
+          storeName = storeRow?.name ?? null
+        } catch {
+          // ignore
+        }
+      }
+
+      return {
+        id: user.id,
+        email,
+        role,
+        storeId,
+        storeName,
+        firstName,
+        lastName,
+        displayName: displayName({ firstName, lastName, email }),
+        initials: initials({ firstName, lastName, email }),
+      }
+    } catch {
+      const off = fromOfflineCookie()
+      if (off) return off
     }
   }
 
-  return null
+  return fromOfflineCookie()
 })
 
 /** Admin da loja ou Master da plataforma. */

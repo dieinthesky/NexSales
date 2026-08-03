@@ -16,41 +16,28 @@ import {
 } from '@/lib/supabase/admin-data'
 
 /**
- * Acesso canônico aos dados do app (site + .exe).
+ * Acesso canônico aos dados (site + .exe).
  *
- * Problema antigo do desktop:
- *  - JWT do Supabase expira e a cookie "offline" ainda deixa o usuário logado
- *  - createClient abortava em 3s → falso offline / 404 / catálogo incompleto
- *  - cada tela patchava de um jeito
- *
- * Regra única:
- *  1. Exige usuário autenticado (cookie JWT ou offline assinado)
- *  2. No Electron (e quando service role existe), preferimos service role
- *     + filtro de loja no código (mesma segurança do app, dados completos)
- *  3. Timeout longo (createSyncClient) se cair no JWT do usuário
- *  4. Toda query server usa isto — não "inventar" outro client solto
+ * Online no desktop → service role + filtro de loja.
+ * Offline no desktop → withAppDataOrSqlite cai no SQLite em ~2s (service role
+ * também tem abort de 4s por fetch — não trava o app).
  */
 
 export type AppDataMode = 'service' | 'user'
 
 export interface AppDataContext {
-  /** Cliente Supabase pronto para queries */
   client: SupabaseClient<Database>
   user: CurrentUser
   role: UserRole
-  /** Loja principal (sessão / membership) */
   storeId: string | null
-  /** Todas as lojas acessíveis */
   storeIds: string[]
   mode: AppDataMode
-  /** true no shell Windows */
   electron: boolean
 }
 
-/**
- * Resolve client + loja para o usuário logado.
- * @throws Error('unauthenticated') se não houver sessão
- */
+/** Deadline curto para operações online antes de SQLite offline. */
+const OFFLINE_FALLBACK_MS = 2_200
+
 export async function getAppDataContext(
   userHint?: CurrentUser | null,
 ): Promise<AppDataContext> {
@@ -64,18 +51,34 @@ export async function getAppDataContext(
   let storeId = user.storeId
   let storeIds = user.storeId ? [user.storeId] : []
 
-  try {
-    const ctx = await resolveAdminContext(user)
-    role = ctx.role
-    storeId = ctx.storeId
-    storeIds = ctx.storeIds
-  } catch {
-    // mantém cookie
+  // resolveAdminContext bate na rede — timeout curto + cookie como fallback
+  if (electron) {
+    try {
+      const ctx = await Promise.race([
+        resolveAdminContext(user),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 1_500)),
+      ])
+      if (ctx) {
+        role = ctx.role
+        storeId = ctx.storeId
+        storeIds = ctx.storeIds
+      }
+    } catch {
+      // cookie
+    }
+  } else {
+    try {
+      const ctx = await resolveAdminContext(user)
+      role = ctx.role
+      storeId = ctx.storeId
+      storeIds = ctx.storeIds
+    } catch {
+      // cookie
+    }
   }
 
-  // Desktop (e builds com secret): service role — dados iguais ao site admin
   if (electron) {
-    const service = tryCreateServiceClient()
+    const service = tryCreateServiceClient(3_500)
     if (service) {
       return {
         client: service,
@@ -89,9 +92,7 @@ export async function getAppDataContext(
     }
   }
 
-  // Web / fallback: JWT (timeout já é longo no Electron via createClient)
   const userClient = await createClient()
-
   return {
     client: userClient,
     user,
@@ -103,9 +104,6 @@ export async function getAppDataContext(
   }
 }
 
-/**
- * Atalho: só o client.
- */
 export async function getAppDataClient(
   userHint?: CurrentUser | null,
 ): Promise<SupabaseClient<Database>> {
@@ -113,25 +111,18 @@ export async function getAppDataClient(
   return ctx.client
 }
 
-/**
- * Aplica filtro de loja em queries (service role não tem RLS).
- * Master sem storeId: sem filtro (vê tudo).
- * Admin/employee: filtra store_id = loja do usuário.
- */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function applyStoreFilter<T extends { eq: (c: string, v: string) => any }>(
   query: T,
   ctx: Pick<AppDataContext, 'role' | 'storeId' | 'mode'>,
   column = 'store_id',
 ): T {
-  // JWT+RLS já isola; só forza store no service role
   if (ctx.mode !== 'service') return query
   if (ctx.role === 'master' && !ctx.storeId) return query
   if (ctx.storeId) return query.eq(column, ctx.storeId) as T
   return query
 }
 
-/** Garante que a linha pertence à loja do usuário (service role). */
 export function assertStoreAccess(
   ctx: Pick<AppDataContext, 'role' | 'storeId' | 'storeIds'>,
   rowStoreId: string | null | undefined,
@@ -140,25 +131,47 @@ export function assertStoreAccess(
 }
 
 /**
- * Helper: tenta a operação com getAppDataContext; se falhar rede no Electron,
- * chama o fallback SQLite.
+ * Online com deadline; no Electron cai no SQLite ao timeout/erro.
+ * Sem rede, o PDV e as listas abrem com cache local.
  */
 export async function withAppDataOrSqlite<T>(
   online: (ctx: AppDataContext) => Promise<T>,
   sqliteFallback: () => T | Promise<T>,
+  timeoutMs = OFFLINE_FALLBACK_MS,
 ): Promise<T> {
-  try {
+  if (!isElectron()) {
     const ctx = await getAppDataContext()
-    return await online(ctx)
-  } catch (err) {
-    if (isElectron()) {
-      try {
-        return await sqliteFallback()
-      } catch (sqliteErr) {
-        console.warn('[app-data] online + sqlite failed:', err, sqliteErr)
-        throw err
-      }
-    }
-    throw err
+    return online(ctx)
+  }
+
+  const onlinePromise = (async () => {
+    const ctx = await getAppDataContext()
+    return online(ctx)
+  })()
+
+  type Race =
+    | { kind: 'ok'; value: T }
+    | { kind: 'fail' }
+
+  const raced = await Promise.race([
+    onlinePromise
+      .then((value): Race => ({ kind: 'ok', value }))
+      .catch((): Race => ({ kind: 'fail' })),
+    new Promise<Race>((resolve) =>
+      setTimeout(() => resolve({ kind: 'fail' }), timeoutMs),
+    ),
+  ])
+
+  if (raced.kind === 'ok') return raced.value
+
+  // Não espera a promise online eternamente — SQLite responde agora
+  onlinePromise.catch(() => {})
+
+  try {
+    return await sqliteFallback()
+  } catch (sqliteErr) {
+    console.warn('[app-data] sqlite fallback failed:', sqliteErr)
+    // Re-tenta online se o SQLite falhar (primeira instalação)
+    return onlinePromise
   }
 }
