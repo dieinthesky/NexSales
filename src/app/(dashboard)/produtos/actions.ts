@@ -860,7 +860,7 @@ export async function enrichProductsByBarcodeBatch(
 
   try {
     const user = await getCurrentUser()
-    if (!user || !isAdmin(user)) {
+    if (!user || !(await isAdmin())) {
       return { ...empty, message: 'Sem permissão.' }
     }
 
