@@ -1,4 +1,10 @@
 import type { NextConfig } from 'next'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+const packageVersion = JSON.parse(
+  readFileSync(join(__dirname, 'package.json'), 'utf8'),
+).version as string
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -9,6 +15,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '',
+    NEXT_PUBLIC_APP_VERSION: process.env.NEXT_PUBLIC_APP_VERSION ?? packageVersion,
   },
   async headers() {
     return [

@@ -1,13 +1,16 @@
 /**
  * Offline-first product reads for the PDV.
  *
- * Local IndexedDB first; when online and local miss, sync and query Supabase.
+ * REGRA DE OURO:
+ *  - Sem internet → só IndexedDB. Zero fetch / zero Supabase.
+ *  - Com internet → local primeiro; se vazio, sync e opcionalmente API.
  */
 
 import 'client-only'
 import { getDB } from './db'
 import { syncProducts } from './sync'
 import { createClient } from '@/lib/supabase/client'
+import { mayUseNetwork } from './network'
 import type { Product } from '@/types/database'
 
 const DEFAULT_LIMIT = 20
@@ -25,16 +28,7 @@ function sortMatches(matches: Product[]): Product[] {
   })
 }
 
-/**
- * Substring search by name OR code, case-insensitive.
- */
-export async function searchProducts(
-  query: string,
-  limit = DEFAULT_LIMIT,
-): Promise<Product[]> {
-  const q = query.trim().toLowerCase()
-  if (!q) return []
-
+async function findLocalMatches(q: string, limit: number): Promise<Product[]> {
   const db = getDB()
   const local = await db.products
     .filter(
@@ -45,65 +39,67 @@ export async function searchProducts(
     )
     .limit(limit * 3)
     .toArray()
+  return sortMatches(local).slice(0, limit)
+}
 
-  if (local.length > 0) {
-    return sortMatches(local).slice(0, limit)
-  }
+/**
+ * Substring search by name OR code, case-insensitive.
+ */
+export async function searchProducts(
+  query: string,
+  limit = DEFAULT_LIMIT,
+): Promise<Product[]> {
+  const q = query.trim().toLowerCase()
+  if (!q) return []
 
-  // Catalog vazio ou desatualizado: tenta rede
-  if (typeof navigator !== 'undefined' && navigator.onLine) {
-    try {
-      await syncProducts()
-      const after = await db.products
-        .filter(
-          (p) =>
-            p.is_active &&
-            !isReservedCode(p.code) &&
-            (p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q)),
-        )
-        .limit(limit * 3)
-        .toArray()
-      if (after.length > 0) return sortMatches(after).slice(0, limit)
+  const local = await findLocalMatches(q, limit)
+  if (local.length > 0) return local
 
-      const remote = await searchProductsRemote(q, limit)
-      if (remote.length > 0) {
+  // Sem inventário local: só tenta rede se online
+  if (!mayUseNetwork()) return []
+
+  try {
+    await syncProducts()
+    const after = await findLocalMatches(q, limit)
+    if (after.length > 0) return after
+
+    const remote = await searchProductsRemote(q, limit)
+    if (remote.length > 0) {
+      try {
+        await getDB().products.bulkPut(remote)
+      } catch {
+        // ignore
+      }
+      return remote
+    }
+
+    const res = await fetch(`/api/products/lookup?q=${encodeURIComponent(q)}`, {
+      credentials: 'same-origin',
+    })
+    if (res.ok) {
+      const body = (await res.json()) as { products?: Product[] }
+      const apiRows = sortMatches(
+        (body.products ?? []).filter((p) => p.code && !isReservedCode(p.code)),
+      ).slice(0, limit)
+      if (apiRows.length > 0) {
         try {
-          await db.products.bulkPut(remote)
+          await getDB().products.bulkPut(apiRows)
         } catch {
           // ignore
         }
-        return remote
+        return apiRows
       }
-
-      // API server (full store catalog no exe)
-      const res = await fetch(`/api/products/lookup?q=${encodeURIComponent(q)}`, {
-        credentials: 'same-origin',
-      })
-      if (res.ok) {
-        const body = (await res.json()) as { products?: Product[] }
-        const apiRows = sortMatches(
-          (body.products ?? []).filter((p) => p.code && !isReservedCode(p.code)),
-        ).slice(0, limit)
-        if (apiRows.length > 0) {
-          try {
-            await db.products.bulkPut(apiRows)
-          } catch {
-            // ignore
-          }
-          return apiRows
-        }
-      }
-    } catch {
-      // offline / falha
     }
+  } catch {
+    // offline mid-request
   }
 
   return []
 }
 
 async function searchProductsRemote(q: string, limit: number): Promise<Product[]> {
+  if (!mayUseNetwork()) return []
   const supabase = createClient()
-  // Escapa % e _ para não virar curinga do ilike
   const safe = q.replace(/[%_\\]/g, '\\$&')
   const pattern = `%${safe}%`
   const { data, error } = await supabase
@@ -114,7 +110,6 @@ async function searchProductsRemote(q: string, limit: number): Promise<Product[]
     .limit(limit * 2)
 
   if (error || !data) {
-    // Fallback sem aspas se o filtro quebrado
     const again = await supabase
       .from('products')
       .select('*')
@@ -133,8 +128,8 @@ async function searchProductsRemote(q: string, limit: number): Promise<Product[]
 }
 
 async function getByCodeRemote(code: string): Promise<Product | null> {
+  if (!mayUseNetwork()) return null
   const supabase = createClient()
-  // exact code primeiro; fallback nome curto
   const { data: byCode } = await supabase
     .from('products')
     .select('*')
@@ -168,77 +163,76 @@ async function getByCodeRemote(code: string): Promise<Product | null> {
   return rows[0] ?? null
 }
 
-/** Exact barcode/SKU lookup. Returns null when there's no active match. */
-export async function getByCode(code: string): Promise<Product | null> {
-  const trimmed = code.trim()
-  if (!trimmed || isReservedCode(trimmed)) return null
-
+async function findLocalByCode(trimmed: string): Promise<Product | null> {
   const db = getDB()
+  let product = await db.products.where('code').equals(trimmed).first()
+  if (product?.is_active && !isReservedCode(product.code)) return product
 
-  async function findLocal(): Promise<Product | null> {
-    let product = await db.products.where('code').equals(trimmed).first()
-    if (product?.is_active && !isReservedCode(product.code)) return product
+  const all = await db.products
+    .filter(
+      (p) =>
+        p.is_active &&
+        !isReservedCode(p.code) &&
+        p.code.trim().toLowerCase() === trimmed.toLowerCase(),
+    )
+    .first()
+  if (all) return all
 
-    const all = await db.products
+  return (
+    (await db.products
       .filter(
         (p) =>
           p.is_active &&
           !isReservedCode(p.code) &&
-          p.code.trim().toLowerCase() === trimmed.toLowerCase(),
+          p.name.trim().toLowerCase() === trimmed.toLowerCase(),
       )
-      .first()
-    if (all) return all
+      .first()) ?? null
+  )
+}
 
-    return (
-      (await db.products
-        .filter(
-          (p) =>
-            p.is_active &&
-            !isReservedCode(p.code) &&
-            p.name.trim().toLowerCase() === trimmed.toLowerCase(),
-        )
-        .first()) ?? null
-    )
-  }
+/** Exact barcode/SKU lookup. Offline = local only. */
+export async function getByCode(code: string): Promise<Product | null> {
+  const trimmed = code.trim()
+  if (!trimmed || isReservedCode(trimmed)) return null
 
-  let product = await findLocal()
+  const product = await findLocalByCode(trimmed)
   if (product) return product
 
-  if (typeof navigator !== 'undefined' && navigator.onLine) {
-    try {
-      await syncProducts()
-      product = await findLocal()
-      if (product) return product
+  if (!mayUseNetwork()) return null
 
-      const remote = await getByCodeRemote(trimmed)
-      if (remote) {
-        try {
-          await db.products.put(remote)
-        } catch {
-          // ignore
-        }
-        return remote
-      }
+  try {
+    await syncProducts()
+    const again = await findLocalByCode(trimmed)
+    if (again) return again
 
-      // API do servidor (service role no Electron) — espelha o site
-      const viaApi = await lookupViaApi(trimmed)
-      if (viaApi) {
-        try {
-          await db.products.put(viaApi)
-        } catch {
-          // ignore
-        }
-        return viaApi
+    const remote = await getByCodeRemote(trimmed)
+    if (remote) {
+      try {
+        await getDB().products.put(remote)
+      } catch {
+        // ignore
       }
-    } catch {
-      // offline
+      return remote
     }
+
+    const viaApi = await lookupViaApi(trimmed)
+    if (viaApi) {
+      try {
+        await getDB().products.put(viaApi)
+      } catch {
+        // ignore
+      }
+      return viaApi
+    }
+  } catch {
+    // offline mid-flight
   }
 
   return null
 }
 
 async function lookupViaApi(q: string): Promise<Product | null> {
+  if (!mayUseNetwork()) return null
   try {
     const res = await fetch(`/api/products/lookup?q=${encodeURIComponent(q)}`, {
       credentials: 'same-origin',
@@ -256,7 +250,6 @@ async function lookupViaApi(q: string): Promise<Product | null> {
     )
     if (exactName) return exactName
     if (rows.length === 1) return rows[0]
-    // Código digitado 1 dígito errado: aceita se só 1 candidato
     if (rows.length > 0 && /^\d+$/.test(q)) return rows[0]
     return null
   } catch {
@@ -264,25 +257,23 @@ async function lookupViaApi(q: string): Promise<Product | null> {
   }
 }
 
-/** Atualiza a foto no cache local (PDV) sem esperar o sync. */
 export async function patchLocalProductImage(
   productId: string,
   imageUrl: string,
 ): Promise<void> {
   try {
-    const db = getDB()
-    await db.products.update(productId, { image_url: imageUrl })
+    await getDB().products.update(productId, { image_url: imageUrl })
   } catch {
     // best-effort
   }
 }
 
 /**
- * Sync no PDV: ao abrir Nova Venda, baixa o catálogo de novo (rede ok).
+ * Sync no PDV quando online. Offline: nunca tenta rede.
  */
 export async function ensureProductsCached(force = false): Promise<void> {
+  if (!mayUseNetwork()) return
   try {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const db = getDB()
     const count = await db.products.count()
     if (force || count === 0) {

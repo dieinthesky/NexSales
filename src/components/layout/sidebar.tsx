@@ -250,7 +250,9 @@ function SidebarFooter({ role }: { role: UserRole }) {
     <div className="px-4 py-4 border-t border-slate-800">
       <div className="rounded-lg bg-slate-800/50 px-3 py-2.5 text-xs text-slate-400">
         <div className="flex items-center justify-between gap-2">
-          <p className="font-medium text-slate-300">CaixaDoBairro v1.0</p>
+          <p className="font-medium text-slate-300">
+            CaixaDoBairro v{process.env.NEXT_PUBLIC_APP_VERSION ?? '0.2.0'}
+          </p>
           <div className="flex items-center gap-1.5">
             <button
               onClick={toggle}

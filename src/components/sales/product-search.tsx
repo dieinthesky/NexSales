@@ -12,6 +12,7 @@ import {
   getByCode,
   ensureProductsCached,
 } from '@/lib/offline/products-repo'
+import { mayUseNetwork } from '@/lib/offline/network'
 import type { Product, CartItem } from '@/types/database'
 
 interface ProductSearchProps {
@@ -37,10 +38,12 @@ export function ProductSearch({ onAdd, variant = 'default' }: ProductSearchProps
   const debouncedQuery = useDebounce(query, 300)
   const didStageRef = useRef(false)
 
-  // Auto-focus search on mount + always refresh catalog when online
+  // Auto-focus search on mount; só tenta rede se o SO reportar online
   useEffect(() => {
     searchRef.current?.focus()
-    void ensureProductsCached(true)
+    if (mayUseNetwork()) {
+      void ensureProductsCached(true)
+    }
   }, [])
 
   // Reset highlight whenever results change.

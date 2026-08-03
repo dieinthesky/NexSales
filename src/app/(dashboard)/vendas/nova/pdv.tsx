@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { ProductSearch } from '@/components/sales/product-search'
 import { Cart } from '@/components/sales/cart'
 import { PdvProductArt } from '@/components/sales/pdv-product-art'
+import { CatalogReadyBar } from '@/components/sales/catalog-ready-bar'
+import { CatalogGate } from '@/components/sales/catalog-gate'
 import {
   PaymentCheckout,
   allocatePayments,
@@ -27,6 +29,11 @@ import { resolveProductImageForPdv } from '../../produtos/actions'
 import { searchCustomersOffline } from '@/lib/offline/customers-repo'
 import { queueSale } from '@/lib/offline/sales-repo'
 import { patchLocalProductImage } from '@/lib/offline/products-repo'
+import {
+  getLocalCatalogStatus,
+  pullCatalogIfOnline,
+  type LocalCatalogStatus,
+} from '@/lib/offline/catalog-status'
 import { formatCurrency, PAYMENT_LABELS } from '@/lib/utils/format'
 import { printReceipt } from '@/lib/utils/print-receipt'
 import type { StorePixConfig } from '@/components/sales/pix-qr-panel'
@@ -66,6 +73,8 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
   const [triedSubmit, setTriedSubmit] = useState(false)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [clock, setClock] = useState('')
+  const [catalogStatus, setCatalogStatus] = useState<LocalCatalogStatus | null>(null)
+  const [catalogPulling, setCatalogPulling] = useState(false)
 
   // --- Fiado: seleção de cliente ---
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerBalance | null>(null)
@@ -94,6 +103,42 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
   }, [])
+
+  // Boot: se online e cache vazio, baixa sozinho; se offline só lê local
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const first = await getLocalCatalogStatus()
+      if (cancelled) return
+      setCatalogStatus(first)
+      if (!first.ready && first.online) {
+        setCatalogPulling(true)
+        const next = await pullCatalogIfOnline()
+        if (!cancelled) {
+          setCatalogStatus(next)
+          setCatalogPulling(false)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handlePullCatalog() {
+    setCatalogPulling(true)
+    try {
+      const next = await pullCatalogIfOnline()
+      setCatalogStatus(next)
+      if (next.ready) {
+        toast.success(`${next.productCount} produtos no catálogo local`)
+      } else {
+        toast.error('Não foi possível baixar o catálogo. Confira a internet e o login.')
+      }
+    } finally {
+      setCatalogPulling(false)
+    }
+  }
 
   const total = cartItems.reduce(
     (sum, item) => sum + (item.customPrice ?? item.product.sale_price) * item.quantity,
@@ -571,6 +616,8 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
         </div>
       </header>
 
+      <CatalogReadyBar onStatus={setCatalogStatus} />
+
       {offlineSale && (
         <div className="relative shrink-0 border-b border-amber-400/40 bg-amber-100 px-4 py-3 text-amber-950">
           <button
@@ -610,6 +657,11 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
         </div>
       )}
 
+      <CatalogGate
+        status={catalogStatus}
+        pulling={catalogPulling}
+        onPull={() => void handlePullCatalog()}
+      >
       {/* Banner: só o último item bipado (não é o total da venda) */}
       <div className="shrink-0 bg-[#234e7a] px-3 py-3 text-white sm:px-5 sm:py-4">
         {lastItem ? (
@@ -797,6 +849,7 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
           </span>
         </div>
       </footer>
+      </CatalogGate>
 
       {completedSale && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]">
