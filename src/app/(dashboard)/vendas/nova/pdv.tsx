@@ -339,7 +339,7 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
 
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        await saveOffline(clientUuid, built.header, built.lines, built.label)
+        await saveOffline(clientUuid, built.header, built.lines, built.label, 'offline')
         return
       }
 
@@ -354,12 +354,14 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
         })
 
         if (result.error) {
-          // Sessão expirada mas ainda "online": grava na fila offline em vez de perder a venda
+          // Só fila offline se for sessão/rede — erros de negócio (estoque) ficam claros
           if (
             result.code === 'unauthenticated' ||
-            result.error.toLowerCase().includes('sessão')
+            result.error.toLowerCase().includes('sessão') ||
+            result.error.toLowerCase().includes('conexão') ||
+            result.error.toLowerCase().includes('service role')
           ) {
-            await saveOffline(clientUuid, built.header, built.lines, built.label)
+            await saveOffline(clientUuid, built.header, built.lines, built.label, 'session')
             return
           }
           toast.error(result.error)
@@ -372,8 +374,11 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
         resetForm()
         setCompletedSale({ saleId, total: saleTotal, paymentLabel: saleLabel })
         toast.success('Venda registrada!')
-      } catch {
-        await saveOffline(clientUuid, built.header, built.lines, built.label)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        // Rede quebrou o server action — fila e sobe sozinho
+        await saveOffline(clientUuid, built.header, built.lines, built.label, 'network')
+        console.warn('[pdv] createSale threw, queued:', msg)
       }
     } finally {
       setIsSubmitting(false)
@@ -385,6 +390,7 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
     header: PaymentMethod,
     lines: { method: TenderMethod; amount: number }[],
     label: string,
+    reason: 'offline' | 'session' | 'network' = 'offline',
   ) {
     try {
       await queueSale({
@@ -403,7 +409,7 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
         })),
       })
     } catch {
-      toast.error('Não foi possível salvar a venda offline.')
+      toast.error('Não foi possível salvar a venda. Tente de novo.')
       return
     }
 
@@ -419,7 +425,16 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
 
     resetForm()
     setOfflineSale(confirmation)
-    toast.success('Venda salva offline — será enviada ao reconectar.')
+
+    if (reason === 'offline') {
+      toast.success('Sem internet — venda guardada. Envia sozinha ao voltar a conexão.')
+    } else if (reason === 'session') {
+      toast.success(
+        'Venda guardada no aparelho. Entre de novo com internet para confirmar no servidor, ou aguarde o envio automático.',
+      )
+    } else {
+      toast.success('Servidor demorou — venda guardada. Envia sozinha em instantes.')
+    }
   }
 
   function handlePrintOffline() {

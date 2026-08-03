@@ -1,11 +1,34 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-// Hoisted so the module mock factory can reference it.
 const { rpcMock } = vi.hoisted(() => ({ rpcMock: vi.fn() }))
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => ({ rpc: rpcMock })),
+  createSyncClient: vi.fn(async () => ({ rpc: rpcMock })),
+}))
+vi.mock('@/lib/auth/roles', () => ({
+  getCurrentUser: vi.fn(async () => ({
+    id: 'user-1',
+    email: 'a@b.com',
+    role: 'admin',
+    storeId: 'store-1',
+    storeName: 'Loja',
+    firstName: null,
+    lastName: null,
+    displayName: 'A',
+    initials: 'A',
+  })),
+  isAdmin: vi.fn(async () => true),
+}))
+vi.mock('@/lib/db/client', () => ({ isElectron: vi.fn(() => false) }))
+vi.mock('@/lib/db/sync', () => ({
+  pullSingleSale: vi.fn(),
+  deleteLocalSale: vi.fn(),
+}))
+vi.mock('@/lib/supabase/service', () => ({
+  tryCreateServiceClient: vi.fn(() => null),
+  createServiceClient: vi.fn(),
 }))
 
 import { createSale } from './actions'
