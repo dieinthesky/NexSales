@@ -55,6 +55,9 @@ export async function lookupProductByBarcode(
 ): Promise<BarcodeLookupResult> {
   const trimmed = code.trim()
   if (!trimmed) return { status: 'not_found' }
+  if (trimmed.startsWith('__')) {
+    return { status: 'not_found' }
+  }
 
   try {
     const supabase = await createClient()
@@ -309,6 +312,10 @@ export async function createProduct(formData: FormData) {
     return { error: parsed.error.issues[0].message }
   }
 
+  if (String(parsed.data.code).startsWith('__')) {
+    return { error: 'Esse código é reservado pelo sistema. Use outro código.' }
+  }
+
   const ctx = await resolveAdminContext()
   const storeId = ctx.storeId
   if (!storeId) {
@@ -402,6 +409,10 @@ export async function updateProduct(id: string, formData: FormData) {
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message }
+  }
+
+  if (String(parsed.data.code).startsWith('__')) {
+    return { error: 'Esse código é reservado pelo sistema. Use outro código.' }
   }
 
   const { role, storeId, storeIds } = await resolveAdminContext()

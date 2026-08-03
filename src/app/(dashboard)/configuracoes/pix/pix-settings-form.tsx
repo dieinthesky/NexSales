@@ -41,8 +41,8 @@ export function PixSettingsForm({ initial, storeName }: PixSettingsFormProps) {
             Chave PIX · {storeName}
           </p>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            No caixa (código 24), o QR e o “copia e cola” usam estes dados. Aceita e-mail,
-            celular com DDD, CPF/CNPJ ou chave aleatória.
+            Você mesmo cadastra — e-mail, celular com DDD, CPF/CNPJ ou chave aleatória. Não
+            precisa pedir para ninguém rodar SQL no Supabase.
           </p>
         </div>
       </div>

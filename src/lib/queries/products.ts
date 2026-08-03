@@ -47,6 +47,7 @@ export async function getProductsPaged(
     .from('products')
     .select('*, categories(id, name)', { count: 'exact' })
     .eq('is_active', true)
+    .neq('code', '__PIX_LOJA__')
 
   if (params.search) {
     const s = sanitizeForIlike(params.search)

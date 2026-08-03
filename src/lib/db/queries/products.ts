@@ -61,7 +61,7 @@ export function getProductsPaged(params: ProductsListParams = {}): ProductsListR
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const offset = (page - 1) * pageSize
 
-  const conditions: string[] = ['p.is_active = 1']
+  const conditions: string[] = [`p.is_active = 1`, `p.code != '__PIX_LOJA__'`]
   const bindParams: unknown[] = []
 
   if (params.search) {
