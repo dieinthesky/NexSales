@@ -61,7 +61,11 @@ export function getProductsPaged(params: ProductsListParams = {}): ProductsListR
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? DEFAULT_PAGE_SIZE))
   const offset = (page - 1) * pageSize
 
-  const conditions: string[] = [`p.is_active = 1`, `p.code != '__PIX_LOJA__'`]
+  const conditions: string[] = [
+    `p.is_active = 1`,
+    `p.code != '__PIX_LOJA__'`,
+    `p.code != '__ASSINATURA__'`,
+  ]
   const bindParams: unknown[] = []
 
   if (params.search) {
@@ -100,7 +104,7 @@ export function getProductsPaged(params: ProductsListParams = {}): ProductsListR
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        ${where}
-       ORDER BY p.created_at DESC, p.name
+       ORDER BY p.name COLLATE NOCASE, p.code
        LIMIT ? OFFSET ?`,
     )
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

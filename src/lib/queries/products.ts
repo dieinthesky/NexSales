@@ -48,6 +48,7 @@ export async function getProductsPaged(
     .select('*, categories(id, name)', { count: 'exact' })
     .eq('is_active', true)
     .neq('code', '__PIX_LOJA__')
+    .neq('code', '__ASSINATURA__')
 
   if (params.search) {
     const s = sanitizeForIlike(params.search)
@@ -91,7 +92,7 @@ export async function getProductsPaged(
     query = query.eq('track_stock', true).lte('stock_quantity', 0)
   }
 
-  query = query.order('created_at', { ascending: false }).order('name').range(from, to)
+  query = query.order('name', { ascending: true }).order('code', { ascending: true }).range(from, to)
 
   const { data, error, count } = await query
   if (error) throw new Error(error.message)

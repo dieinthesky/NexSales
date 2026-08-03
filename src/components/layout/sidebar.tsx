@@ -68,7 +68,7 @@ const navSections: NavSection[] = [
       { href: '/configuracoes/pix', label: 'PIX da loja', icon: QrCode, adminOnly: true },
       { href: '/relatorios', label: 'Relatório de lucro', icon: BarChart3, adminOnly: true },
       { href: '/configuracoes/relatorio', label: 'Relatório por email', icon: Mail, adminOnly: true },
-      { href: '/planos', label: 'Planos e suporte', icon: BadgePercent },
+      { href: '/planos', label: 'Minha assinatura', icon: BadgePercent, adminOnly: true },
       { href: '/configuracoes/baixar', label: 'Baixar app', icon: MonitorDown, desktopOnly: true },
     ],
   },

@@ -74,8 +74,15 @@ export async function provisionStore(form: {
   })
 
   if (!error && storeId) {
+    const { saveStoreSubscription } = await import('@/lib/store-subscription')
+    const { formatStartedAtInput } = await import('@/lib/config/plans')
+    await saveStoreSubscription(storeId as string, {
+      startedAt: formatStartedAtInput(),
+      plan: 'monthly',
+    })
     revalidatePath('/configuracoes/lojas')
     revalidatePath('/configuracoes/usuarios')
+    revalidatePath('/planos')
     return { success: true, storeId: storeId as string }
   }
 
@@ -130,9 +137,12 @@ export async function provisionStore(form: {
         )
         .eq('store_id', template.id)
         .eq('is_active', true)
-      if (prods && prods.length > 0) {
+      const safeProds = (prods ?? []).filter(
+        (p) => p.code && !String(p.code).startsWith('__'),
+      )
+      if (safeProds.length > 0) {
         await service.from('products').insert(
-          prods.map((p) => ({
+          safeProds.map((p) => ({
             ...p,
             stock_quantity: 0,
             store_id: store.id,
@@ -144,9 +154,42 @@ export async function provisionStore(form: {
     }
   }
 
+  const { saveStoreSubscription } = await import('@/lib/store-subscription')
+  const { formatStartedAtInput } = await import('@/lib/config/plans')
+  await saveStoreSubscription(store.id, {
+    startedAt: formatStartedAtInput(),
+    plan: 'monthly',
+  })
+
   revalidatePath('/configuracoes/lojas')
   revalidatePath('/configuracoes/usuarios')
+  revalidatePath('/planos')
   return { success: true, storeId: store.id }
+}
+
+/**
+ * Master: define/reinicia a data de início da assinatura (3 meses R$ 60 → R$ 99).
+ */
+export async function startStoreSubscription(
+  storeId: string,
+  startedAt?: string,
+): Promise<{ success?: boolean; error?: string }> {
+  if (!(await isMaster())) {
+    return { error: 'Apenas a conta Master pode liberar assinatura.' }
+  }
+  const { formatStartedAtInput } = await import('@/lib/config/plans')
+  const { saveStoreSubscription } = await import('@/lib/store-subscription')
+  const day = startedAt && /^\d{4}-\d{2}-\d{2}$/.test(startedAt)
+    ? startedAt
+    : formatStartedAtInput()
+  const result = await saveStoreSubscription(storeId, {
+    startedAt: day,
+    plan: 'monthly',
+  })
+  if (result.error) return { error: result.error }
+  revalidatePath('/configuracoes/lojas')
+  revalidatePath('/planos')
+  return { success: true }
 }
 
 /**

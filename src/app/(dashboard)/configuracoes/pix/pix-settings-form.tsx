@@ -28,7 +28,7 @@ export function PixSettingsForm({ initial, storeName }: PixSettingsFormProps) {
       toast.error(result.error)
       return
     }
-    toast.success('PIX da loja salvo')
+    toast.success('Chave PIX salva')
   }
 
   return (
@@ -42,26 +42,26 @@ export function PixSettingsForm({ initial, storeName }: PixSettingsFormProps) {
             Chave PIX · {storeName}
           </p>
           <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Você mesmo cadastra — e-mail, celular com DDD, CPF/CNPJ ou chave aleatória. Não
-            precisa pedir para ninguém rodar SQL no Supabase.
+            Informe a chave que os clientes usam para pagar no balcão. Pode ser e-mail, celular
+            (com DDD), CPF, CNPJ ou a chave aleatória do banco.
           </p>
         </div>
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="pix_key">Chave PIX</Label>
+          <Label htmlFor="pix_key">Sua chave PIX</Label>
           <Input
             id="pix_key"
             value={form.pix_key}
             onChange={(e) => setForm((f) => ({ ...f, pix_key: e.target.value }))}
-            placeholder="ex: loja@email.com ou 88999999999"
+            placeholder="ex: 88999999999 ou loja@email.com"
             autoComplete="off"
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="pix_merchant_name">Nome no comprovante</Label>
+            <Label htmlFor="pix_merchant_name">Nome que aparece no comprovante</Label>
             <Input
               id="pix_merchant_name"
               value={form.pix_merchant_name}
@@ -70,7 +70,9 @@ export function PixSettingsForm({ initial, storeName }: PixSettingsFormProps) {
               maxLength={40}
               autoComplete="off"
             />
-            <p className="text-[11px] text-slate-400">Sem acentos; o PIX limita a 25 caracteres.</p>
+            <p className="text-[11px] text-slate-400">
+              Prefira sem acento; o banco corta em cerca de 25 letras.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pix_merchant_city">Cidade</Label>
@@ -91,7 +93,7 @@ export function PixSettingsForm({ initial, storeName }: PixSettingsFormProps) {
               Salvando...
             </>
           ) : (
-            'Salvar PIX'
+            'Salvar chave PIX'
           )}
         </Button>
       </form>

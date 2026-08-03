@@ -75,13 +75,13 @@ export function PixQrPanel({
     return (
       <div className="rounded-xl border border-dashed border-slate-300 bg-white p-3 text-center">
         <QrCode className="mx-auto h-6 w-6 text-slate-400" />
-        <p className="mt-2 text-xs font-medium text-slate-700">PIX sem chave cadastrada</p>
+        <p className="mt-2 text-xs font-medium text-slate-700">Ainda sem chave PIX</p>
         <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-          O admin pode cadastrar a chave em{' '}
+          O dono da loja cadastra em{' '}
           <a href={configureHref} className="font-semibold text-[#234e7a] underline">
-            Configurações → PIX
-          </a>
-          .
+            PIX da loja
+          </a>{' '}
+          no menu — leva menos de um minuto.
         </p>
       </div>
     )

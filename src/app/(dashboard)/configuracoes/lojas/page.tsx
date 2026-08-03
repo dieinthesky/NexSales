@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/table'
 import { ProvisionStoreForm } from './provision-store-form'
 import { ResetStoreButton } from './reset-store-button'
+import { StartSubscriptionButton } from './start-subscription-button'
 import { listStoresForMaster } from './actions'
 
 export const metadata = { title: 'Lojas' }
@@ -29,8 +30,9 @@ export default async function LojasPage() {
           </h1>
         </div>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Conta Master: provisione lojas e use <strong>Resetar loja</strong> para zerar vendas,
-          histórico, fiado e clientes (catálogo permanece).
+          Conta Master: provisione lojas, libere assinatura (R$ 60 × 3 meses → R$ 99) e use{' '}
+          <strong>Resetar loja</strong> para zerar operação. O cliente vê só o status em{' '}
+          <strong>Minha assinatura</strong>.
         </p>
       </div>
 
@@ -74,11 +76,16 @@ export default async function LojasPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <ResetStoreButton
-                      storeId={s.id}
-                      storeName={s.name}
-                      isTemplate={s.is_template}
-                    />
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {!s.is_template && (
+                        <StartSubscriptionButton storeId={s.id} storeName={s.name} />
+                      )}
+                      <ResetStoreButton
+                        storeId={s.id}
+                        storeName={s.name}
+                        isTemplate={s.is_template}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
