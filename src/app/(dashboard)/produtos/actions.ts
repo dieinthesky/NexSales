@@ -1093,3 +1093,184 @@ export async function enrichProductsByBarcodeBatch(
   }
 }
 
+// ─── Nomes da planilha produtos_corrigidos.xlsx ─────────────────────────────
+
+export interface SheetNameApplyResult {
+  updated: number
+  matched: number
+  missingInStore: number
+  totalSheet: number
+  samples: { code: string; oldName: string; newName: string; category: string | null }[]
+  message?: string
+}
+
+/**
+ * Aplica nomes/categorias da planilha embutida (produtos_corrigidos.xlsx)
+ * filtrando só os identificados — por código de barras, na loja atual.
+ */
+export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameApplyResult> {
+  const empty: SheetNameApplyResult = {
+    updated: 0,
+    matched: 0,
+    missingInStore: 0,
+    totalSheet: 0,
+    samples: [],
+  }
+
+  try {
+    const user = await getCurrentUser()
+    if (!user || !(await isAdmin())) {
+      return { ...empty, message: 'Sem permissão.' }
+    }
+
+    const ctx = await resolveAdminContext(user)
+    const storeId = ctx.storeId
+    if (!storeId) {
+      return {
+        ...empty,
+        message: 'Escolha a loja do cliente antes de aplicar os nomes.',
+      }
+    }
+
+    const corrections = (
+      await import('@/data/product-name-corrections.json')
+    ).default as Array<{
+      code: string
+      name: string
+      category: string | null
+    }>
+
+    const admin = await getAdminDataClient()
+    const byCode = new Map<string, { name: string; category: string | null }>()
+    for (const row of corrections) {
+      const code = String(row.code ?? '').replace(/\D/g, '')
+      if (!code || !row.name?.trim()) continue
+      byCode.set(code, {
+        name: row.name.trim(),
+        category: row.category?.trim() || null,
+      })
+    }
+
+    // Categorias usadas na planilha + padrão
+    const catNames = new Set<string>([
+      'Alimentos',
+      'Bebidas',
+      'Limpeza',
+      'Higiene',
+      'Bazar',
+      'Pet',
+      'Geral',
+    ])
+    for (const row of byCode.values()) {
+      if (row.category) catNames.add(row.category)
+    }
+    for (const name of catNames) {
+      await admin
+        .from('categories')
+        .upsert({ name, store_id: storeId }, { onConflict: 'store_id,name' })
+    }
+
+    const { data: catRows } = await admin
+      .from('categories')
+      .select('id, name')
+      .eq('store_id', storeId)
+
+    const categoryByName = new Map(
+      (catRows ?? []).map((c) => [c.name, c.id] as const),
+    )
+
+    const { data: products, error: listErr } = await admin
+      .from('products')
+      .select('id, code, name, category_id, store_id')
+      .eq('store_id', storeId)
+      .eq('is_active', true)
+
+    if (listErr) {
+      return { ...empty, totalSheet: byCode.size, message: listErr.message }
+    }
+
+    let matched = 0
+    let updated = 0
+    const samples: SheetNameApplyResult['samples'] = []
+    const codesInSheet = new Set(byCode.keys())
+    const codesInStore = new Set<string>()
+
+    for (const product of products ?? []) {
+      if (!canAccessStoreRow(ctx.role, storeId, product.store_id, ctx.storeIds)) {
+        continue
+      }
+      const code = String(product.code ?? '').replace(/\D/g, '')
+      if (!code) continue
+      codesInStore.add(code)
+      const fix = byCode.get(code)
+      if (!fix) continue
+      matched++
+
+      const categoryId = fix.category
+        ? (categoryByName.get(fix.category) ?? null)
+        : null
+
+      const patch: {
+        name?: string
+        category_id?: string | null
+      } = {}
+
+      if (product.name.trim() !== fix.name) {
+        patch.name = fix.name
+      }
+      if (categoryId && product.category_id !== categoryId) {
+        patch.category_id = categoryId
+      }
+      if (Object.keys(patch).length === 0) continue
+
+      const { error: upErr } = await admin
+        .from('products')
+        .update(patch)
+        .eq('id', product.id)
+        .eq('store_id', storeId)
+
+      if (upErr) continue
+
+      updated++
+      if (samples.length < 12) {
+        samples.push({
+          code,
+          oldName: product.name,
+          newName: fix.name,
+          category: fix.category,
+        })
+      }
+    }
+
+    let missingInStore = 0
+    for (const code of codesInSheet) {
+      if (!codesInStore.has(code)) missingInStore++
+    }
+
+    revalidatePath('/produtos')
+    revalidatePath('/produtos/visita')
+    revalidatePath('/vendas/nova')
+    revalidatePath('/dashboard')
+
+    return {
+      updated,
+      matched,
+      missingInStore,
+      totalSheet: byCode.size,
+      samples,
+      message:
+        updated > 0
+          ? `${updated} produtos atualizados com a planilha.`
+          : matched > 0
+            ? 'Nomes da planilha já estavam aplicados nesta loja.'
+            : 'Nenhum código da planilha bateu com produtos desta loja.',
+    }
+  } catch (e) {
+    return {
+      ...empty,
+      message: e instanceof Error ? e.message : 'Falha ao aplicar planilha.',
+    }
+  }
+}
+
+
