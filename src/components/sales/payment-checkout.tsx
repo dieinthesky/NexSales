@@ -27,10 +27,17 @@ export interface InformedPayment {
   amount: number
 }
 
-/** Códigos iguais aos da Trevo / PDV de balcão. */
+/** Códigos simples no balcão: 1 Dinheiro, 2 PIX, 3 Débito, 4 Crédito, 5 Fiado.
+ * Mantém os antigos (01, 24…) para quem já decorou. */
 export const PAYMENT_CODES: Record<string, TenderMethod> = {
-  '01': 'cash',
+  // Novos (principais)
   '1': 'cash',
+  '2': 'pix',
+  '3': 'debit',
+  '4': 'credit',
+  '5': 'fiado',
+  // Legado (Trevo / teclado antigo)
+  '01': 'cash',
   '24': 'pix',
   '25': 'debit',
   '26': 'credit',
@@ -38,12 +45,20 @@ export const PAYMENT_CODES: Record<string, TenderMethod> = {
 }
 
 const CODE_HINTS = [
-  { code: '01', label: 'Dinheiro' },
-  { code: '24', label: 'PIX' },
-  { code: '25', label: 'Débito' },
-  { code: '26', label: 'Crédito' },
-  { code: '99', label: 'Fiado' },
+  { code: '1', label: 'Dinheiro' },
+  { code: '2', label: 'PIX' },
+  { code: '3', label: 'Débito' },
+  { code: '4', label: 'Crédito' },
+  { code: '5', label: 'Fiado' },
 ]
+
+const METHOD_PRIMARY_CODE: Record<TenderMethod, string> = {
+  cash: '1',
+  pix: '2',
+  debit: '3',
+  credit: '4',
+  fiado: '5',
+}
 
 function parseMoney(raw: string): number {
   const n = parseFloat(raw.replace(',', '.'))
@@ -311,7 +326,7 @@ export function PaymentCheckout({
                     onChange={(e) => setMethodCode(e.target.value.replace(/\D/g, '').slice(0, 2))}
                     onKeyDown={handleMethodKeyDown}
                     onFocus={() => setStep('method')}
-                    placeholder="01"
+                    placeholder="1"
                     inputMode="numeric"
                     className="h-12 border-slate-300 bg-slate-50 text-center font-mono text-xl font-bold text-slate-900"
                     autoComplete="off"
@@ -351,7 +366,7 @@ export function PaymentCheckout({
                     type="button"
                     onClick={() => {
                       setMethodCode(h.code)
-                      const rest = h.code === '99' ? total : missing > 0 ? missing : total
+                      const rest = h.code === '5' ? total : missing > 0 ? missing : total
                       setAmountRaw(rest.toFixed(2).replace('.', ','))
                       setStep('amount')
                     }}
@@ -387,7 +402,7 @@ export function PaymentCheckout({
                           {PAYMENT_LABELS[row.method] ?? row.method}
                         </p>
                         <p className="text-[11px] font-mono text-slate-400">
-                          {CODE_HINTS.find((h) => PAYMENT_CODES[h.code] === row.method)?.code ?? ''}
+                          {METHOD_PRIMARY_CODE[row.method] ?? ''}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -563,9 +578,9 @@ export function PaymentCheckout({
               }
             />
             <p className="pt-2 text-[11px] leading-relaxed text-slate-500">
-              PIX: use <span className="font-mono text-slate-700">24</span> + valor. Misto ex.:{' '}
-              <span className="font-mono text-slate-700">24</span> Enter 50 +{' '}
-              <span className="font-mono text-slate-700">01</span> Enter 50.
+              PIX: digite <span className="font-mono text-slate-700">2</span> + valor. Misto ex.:{' '}
+              <span className="font-mono text-slate-700">2</span> Enter 50 +{' '}
+              <span className="font-mono text-slate-700">1</span> Enter 50.
             </p>
           </div>
         </div>
