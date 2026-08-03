@@ -29,6 +29,7 @@ import { queueSale } from '@/lib/offline/sales-repo'
 import { patchLocalProductImage } from '@/lib/offline/products-repo'
 import { formatCurrency, PAYMENT_LABELS } from '@/lib/utils/format'
 import { printReceipt } from '@/lib/utils/print-receipt'
+import type { StorePixConfig } from '@/components/sales/pix-qr-panel'
 import type { CartItem, CustomerBalance, PaymentMethod, Product } from '@/types/database'
 
 /** Snapshot of a sale saved offline, for the provisional confirmation banner. */
@@ -50,9 +51,10 @@ function round2(n: number) {
 
 interface PDVProps {
   avulsoProduct?: Product | null
+  pixConfig?: StorePixConfig | null
 }
 
-export function PDV({ avulsoProduct }: PDVProps) {
+export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
   const router = useRouter()
   const [cartItems, setCartItems] = useState<CartItem[]>([])
   const [informedPays, setInformedPays] = useState<InformedPayment[]>([])
@@ -834,6 +836,7 @@ export function PDV({ avulsoProduct }: PDVProps) {
           }}
           customerMissing={customerMissing}
           triedSubmit={triedSubmit}
+          pixConfig={pixConfig}
         />
       )}
     </div>

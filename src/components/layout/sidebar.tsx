@@ -20,6 +20,8 @@ import {
   Moon,
   Store,
   ClipboardList,
+  QrCode,
+  BadgePercent,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -63,8 +65,10 @@ const navSections: NavSection[] = [
     items: [
       { href: '/configuracoes/usuarios', label: 'Usuários', icon: Users, adminOnly: true },
       { href: '/configuracoes/lojas', label: 'Lojas', icon: Store, masterOnly: true },
+      { href: '/configuracoes/pix', label: 'PIX da loja', icon: QrCode, adminOnly: true },
       { href: '/relatorios', label: 'Relatório de lucro', icon: BarChart3, adminOnly: true },
       { href: '/configuracoes/relatorio', label: 'Relatório por email', icon: Mail, adminOnly: true },
+      { href: '/planos', label: 'Planos e suporte', icon: BadgePercent },
       { href: '/configuracoes/baixar', label: 'Baixar app', icon: MonitorDown, desktopOnly: true },
     ],
   },

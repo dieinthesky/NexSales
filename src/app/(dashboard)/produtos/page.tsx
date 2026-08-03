@@ -19,6 +19,9 @@ import { requireAdmin } from '@/lib/auth/roles'
 import { tryQuery } from '@/lib/supabase/try-query'
 import { OfflineBanner } from '@/components/offline/offline-banner'
 
+/** Lista sempre fresca após cadastro (evita cache do Next no Vercel). */
+export const dynamic = 'force-dynamic'
+
 type StockStatus = 'out' | 'low' | 'ok'
 
 function getStockStatus(stock: number, min: number): StockStatus {

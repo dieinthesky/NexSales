@@ -90,7 +90,7 @@ export async function getProductsPaged(
     query = query.eq('track_stock', true).lte('stock_quantity', 0)
   }
 
-  query = query.order('name').range(from, to)
+  query = query.order('created_at', { ascending: false }).order('name').range(from, to)
 
   const { data, error, count } = await query
   if (error) throw new Error(error.message)

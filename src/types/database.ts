@@ -308,6 +308,9 @@ export interface Database {
           name: string
           slug: string
           is_template: boolean
+          pix_key: string | null
+          pix_merchant_name: string | null
+          pix_merchant_city: string | null
           created_at: string
           updated_at: string
         }
@@ -316,6 +319,9 @@ export interface Database {
           name: string
           slug: string
           is_template?: boolean
+          pix_key?: string | null
+          pix_merchant_name?: string | null
+          pix_merchant_city?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -324,6 +330,9 @@ export interface Database {
           name?: string
           slug?: string
           is_template?: boolean
+          pix_key?: string | null
+          pix_merchant_name?: string | null
+          pix_merchant_city?: string | null
           created_at?: string
           updated_at?: string
         }

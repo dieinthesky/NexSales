@@ -346,8 +346,43 @@ export async function createProduct(formData: FormData) {
     }
   }
 
-  revalidatePath('/produtos')
-  redirect('/produtos')
+  // Desktop: grava no SQLite na hora (lista não espera o sync de ~60s)
+  if (isElectron() && created?.id) {
+    try {
+      const now = new Date().toISOString()
+      const d = parsed.data
+      getDb()
+        .prepare(
+          `INSERT OR REPLACE INTO products
+           (id, code, name, description, sale_price, cost_price, stock_quantity, min_stock,
+            category_id, is_active, track_stock, image_url, store_id, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          created.id,
+          d.code,
+          d.name,
+          d.description ?? null,
+          d.sale_price,
+          d.cost_price ?? 0,
+          d.stock_quantity ?? 0,
+          d.min_stock ?? 0,
+          d.category_id || null,
+          d.track_stock === false ? 0 : 1,
+          externalUrl,
+          storeId,
+          now,
+          now,
+        )
+    } catch {
+      // best-effort
+    }
+  }
+
+  revalidatePath('/produtos', 'layout')
+  revalidatePath('/vendas/nova', 'layout')
+  // Cache-buster: força o servidor a re-renderizar a lista
+  redirect(`/produtos?novo=${created?.id ?? '1'}`)
 }
 
 export async function updateProduct(id: string, formData: FormData) {

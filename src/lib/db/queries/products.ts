@@ -100,7 +100,7 @@ export function getProductsPaged(params: ProductsListParams = {}): ProductsListR
        FROM products p
        LEFT JOIN categories c ON c.id = p.category_id
        ${where}
-       ORDER BY p.name
+       ORDER BY p.created_at DESC, p.name
        LIMIT ? OFFSET ?`,
     )
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -1,7 +1,8 @@
 -- ============================================================
--- Master + Lojas — TUDO DE UMA VEZ
--- Cole no SQL Editor do Supabase e rode.
+-- TUDO DE UMA VEZ (Master + Lojas + PIX da loja)
+-- Cole este arquivo inteiro no SQL Editor do Supabase e rode.
 -- Idempotente: pode rodar de novo se falhar no meio.
+-- Não precisa rodar RODAR-STORE-PIX.sql separado.
 -- ============================================================
 
 -- 1) Enum master (se já existir, ignora)
@@ -905,5 +906,24 @@ end;
 $$;
 
 grant execute on function public.record_debt_payment(uuid, numeric, text) to authenticated;
+
+-- ============================================================
+-- PIX da loja (QR / copia-e-cola no PDV)
+-- ============================================================
+
+alter table public.stores
+  add column if not exists pix_key text,
+  add column if not exists pix_merchant_name text,
+  add column if not exists pix_merchant_city text;
+
+comment on column public.stores.pix_key is 'Chave PIX (e-mail, telefone, CPF/CNPJ ou aleatória)';
+comment on column public.stores.pix_merchant_name is 'Nome no payload EMV';
+comment on column public.stores.pix_merchant_city is 'Cidade no payload EMV';
+
+drop policy if exists "stores_admin_update" on public.stores;
+create policy "stores_admin_update" on public.stores
+  for update to authenticated
+  using (public.is_store_admin(id) or public.is_master())
+  with check (public.is_store_admin(id) or public.is_master());
 
 notify pgrst, 'reload schema';

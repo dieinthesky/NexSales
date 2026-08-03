@@ -1,22 +1,22 @@
-# SQL — Master + lojas (rodar no Supabase)
+# SQL — rode **um arquivo só**
 
-Rode **nesta ordem**, um arquivo por vez (ou o SQL de cada migration):
+Arquivo: **`RODAR-MASTER-LOJAS-TUDO.sql`**
 
-1. `supabase/migrations/20260801100000_user_role_master.sql`  
-   (só adiciona o enum `master`)
+1. Abra o SQL Editor do Supabase  
+2. Cole o arquivo inteiro  
+3. Rode (Run)
 
-2. `supabase/migrations/20260801100001_user_role_master_functions.sql`  
-   (helpers + promove `admin@vendas-app.interno` a Master)
+Inclui de uma vez: role Master, lojas/isolamente, RPCs, e **PIX da loja** (colunas + permissão do admin atualizar a chave).
 
-3. `supabase/migrations/20260801110000_stores.sql`  
-   (tabelas de loja, `store_id`, RLS, copia catálogo para Mercadinho Walter, histórico fica no modelo)
+É idempotente — se falhar no meio, pode rodar de novo.
 
-4. `supabase/migrations/20260801110001_stores_rpc.sql`  
-   (venda com loja + provisionar/reset Master)
+## Se o banco já está ok e falta só PIX
+
+Opcional: `RODAR-STORE-PIX.sql` (o mesmo bloco de PIX que já está no final do arquivo grande).
 
 ## Depois do SQL
 
-1. Deploy do app (já no Git após push).
-2. Entre com **admin** → deve aparecer badge **Master** e menu **Lojas**.
-3. Entre com **Walter** → não vê a conta Master; só usuários da loja dele; histórico de vendas da loja dele começa limpo (vendas antigas ficaram no catálogo modelo).
-4. Para zerar vendas de uma loja cliente: Master → **Lojas** → **Zerar vendas**.
+1. Deploy do app se ainda não subiu.  
+2. Admin Master → menu **Lojas** / **PIX da loja**.  
+3. Cadastrar a chave PIX em **Configurações → PIX da loja**.  
+4. No caixa, código **24** mostra o QR.

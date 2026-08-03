@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { formatCurrency, PAYMENT_LABELS } from '@/lib/utils/format'
+import { PixQrPanel, type StorePixConfig } from '@/components/sales/pix-qr-panel'
 import type { CustomerBalance, PaymentMethod } from '@/types/database'
 
 export type TenderMethod = Exclude<PaymentMethod, 'mixed'>
@@ -98,6 +99,8 @@ interface PaymentCheckoutProps {
   onSelectCustomer: (c: CustomerBalance) => void
   customerMissing: boolean
   triedSubmit: boolean
+  /** Chave PIX da loja (QR no checkout). */
+  pixConfig?: StorePixConfig | null
 }
 
 export function PaymentCheckout({
@@ -126,6 +129,7 @@ export function PaymentCheckout({
   onSelectCustomer,
   customerMissing,
   triedSubmit,
+  pixConfig = null,
 }: PaymentCheckoutProps) {
   const [methodCode, setMethodCode] = useState('')
   const [amountRaw, setAmountRaw] = useState('')
@@ -140,6 +144,28 @@ export function PaymentCheckout({
   const covered = missing < 0.01
   const resolvedMethod = PAYMENT_CODES[methodCode.trim()] ?? null
   const hasFiado = informed.some((r) => r.method === 'fiado') || resolvedMethod === 'fiado'
+  const informedPix = round2(
+    informed.filter((r) => r.method === 'pix').reduce((s, r) => s + r.amount, 0),
+  )
+  const draftAmount = parseMoney(amountRaw)
+  const draftPix =
+    resolvedMethod === 'pix' &&
+    Number.isFinite(draftAmount) &&
+    draftAmount > 0
+      ? round2(draftAmount)
+      : 0
+  const showPixQr =
+    resolvedMethod === 'pix' || informed.some((r) => r.method === 'pix')
+  const pixQrAmount =
+    draftPix > 0
+      ? draftPix
+      : informedPix > 0
+        ? informedPix
+        : resolvedMethod === 'pix'
+          ? missing > 0
+            ? missing
+            : total
+          : 0
 
   useEffect(() => {
     methodRef.current?.focus()
@@ -526,11 +552,20 @@ export function PaymentCheckout({
             ) : (
               <TotalBlock label="Faltando" value={missing} tone="amber" big />
             )}
+            <PixQrPanel
+              config={pixConfig}
+              amount={
+                showPixQr && pixQrAmount > 0
+                  ? pixQrAmount
+                  : missing > 0
+                    ? missing
+                    : total
+              }
+            />
             <p className="pt-2 text-[11px] leading-relaxed text-slate-500">
-              Ex.: compra R$ 100 → digite <span className="font-mono text-slate-700">24</span> Enter{' '}
-              <span className="font-mono text-slate-700">50</span> Enter (PIX), depois{' '}
-              <span className="font-mono text-slate-700">01</span> Enter{' '}
-              <span className="font-mono text-slate-700">50</span> Enter (dinheiro) e confirme.
+              PIX: use <span className="font-mono text-slate-700">24</span> + valor. Misto ex.:{' '}
+              <span className="font-mono text-slate-700">24</span> Enter 50 +{' '}
+              <span className="font-mono text-slate-700">01</span> Enter 50.
             </p>
           </div>
         </div>
