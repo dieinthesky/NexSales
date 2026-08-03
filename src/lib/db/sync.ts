@@ -326,13 +326,20 @@ function columnExists(db: NxDB, table: string, column: string): boolean {
 
 /**
  * After a successful createSale() RPC, pulls that sale + items + product stock.
+ * Prefer service role so o .exe grava a venda local mesmo com JWT fraco.
  */
 export async function pullSingleSale(saleId: string): Promise<void> {
-  const supabase = await createSyncClient()
+  const { getAdminDataClient } = await import('@/lib/supabase/admin-data')
+  let supabase
+  try {
+    supabase = await getAdminDataClient()
+  } catch {
+    supabase = await createSyncClient()
+  }
   const db = getDb()
 
   const [saleRes, itemsRes] = await Promise.all([
-    supabase.from('sales').select('*').eq('id', saleId).single(),
+    supabase.from('sales').select('*').eq('id', saleId).maybeSingle(),
     supabase.from('sale_items').select('*').eq('sale_id', saleId),
   ])
 
@@ -353,6 +360,42 @@ export async function pullSingleSale(saleId: string): Promise<void> {
     _upsertSaleItems(items)
     if (products.length > 0) _upsertProducts(products)
   })()
+}
+
+/**
+ * Grava venda + itens no SQLite imediatamente (sem rede) — usado no createSale
+ * service role path.
+ */
+export function writeLocalSaleSnapshot(
+  sale: Sale,
+  items: Array<{
+    id?: string
+    sale_id: string
+    product_id: string
+    quantity: number
+    unit_price: number
+    subtotal: number
+    item_description?: string | null
+  }>,
+): void {
+  try {
+    const db = getDb()
+    const withIds: SaleItem[] = items.map((i) => ({
+      id: i.id ?? crypto.randomUUID(),
+      sale_id: i.sale_id,
+      product_id: i.product_id,
+      quantity: i.quantity,
+      unit_price: i.unit_price,
+      subtotal: i.subtotal,
+      item_description: i.item_description ?? null,
+    }))
+    db.transaction(() => {
+      _upsertSales([sale])
+      _upsertSaleItems(withIds)
+    })()
+  } catch (err) {
+    console.warn('[electron] writeLocalSaleSnapshot failed:', err)
+  }
 }
 
 /**

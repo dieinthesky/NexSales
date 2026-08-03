@@ -43,6 +43,7 @@ interface CompletedSale {
   saleId: string
   total: number
   paymentLabel: string
+  items: { name: string; quantity: number; unit_price: number }[]
 }
 
 function round2(n: number) {
@@ -371,8 +372,18 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
         const saleId = result.saleId!
         const saleTotal = total
         const saleLabel = built.label
+        const saleItems = cartItems.map((item) => ({
+          name: item.product.name,
+          quantity: item.quantity,
+          unit_price: item.customPrice ?? item.product.sale_price,
+        }))
         resetForm()
-        setCompletedSale({ saleId, total: saleTotal, paymentLabel: saleLabel })
+        setCompletedSale({
+          saleId,
+          total: saleTotal,
+          paymentLabel: saleLabel,
+          items: saleItems,
+        })
         toast.success('Venda registrada!')
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -808,7 +819,18 @@ export function PDV({ avulsoProduct, pixConfig = null }: PDVProps) {
               <Button
                 variant="outline"
                 className="h-12 flex-1"
-                onClick={() => router.push(`/vendas/${completedSale.saleId}/recibo`)}
+                onClick={() => {
+                  // Cupom local na hora (funciona no .exe sem 404)
+                  if (completedSale.items.length > 0) {
+                    printReceipt({
+                      items: completedSale.items,
+                      total: completedSale.total,
+                      paymentLabel: completedSale.paymentLabel,
+                    })
+                  }
+                  // Página completa (WhatsApp / copiar) — corrigida no server
+                  router.push(`/vendas/${completedSale.saleId}/recibo`)
+                }}
               >
                 Ver recibo
               </Button>

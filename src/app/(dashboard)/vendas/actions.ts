@@ -378,16 +378,20 @@ async function createSaleWithServiceRole(
 
   const saleId = saleRow.id as string
 
-  const { error: itemsErr } = await admin.from('sale_items').insert(
-    lines.map((l) => ({
-      sale_id: saleId,
-      product_id: l.product_id,
-      quantity: l.quantity,
-      unit_price: l.unit_price,
-      subtotal: l.subtotal,
-      item_description: l.item_description,
-    })),
-  )
+  const { data: insertedItems, error: itemsErr } = await admin
+    .from('sale_items')
+    .insert(
+      lines.map((l) => ({
+        sale_id: saleId,
+        product_id: l.product_id,
+        quantity: l.quantity,
+        unit_price: l.unit_price,
+        subtotal: l.subtotal,
+        item_description: l.item_description,
+      })),
+    )
+    .select('id, sale_id, product_id, quantity, unit_price, subtotal, item_description')
+
   if (itemsErr) {
     await admin.from('sales').delete().eq('id', saleId)
     return { error: itemsErr.message, code: 'unknown' }
@@ -415,8 +419,45 @@ async function createSaleWithServiceRole(
     })),
   )
   if (payErr) {
-    // Venda já existe; pagamento pode falhar em schema antigo — não desfaz tudo
     console.warn('[createSale] sale_payments insert:', payErr.message)
+  }
+
+  // SQLite do .exe — recibo imediato sem esperar pull
+  if (isElectron()) {
+    try {
+      const { writeLocalSaleSnapshot } = await import('@/lib/db/sync')
+      writeLocalSaleSnapshot(
+        {
+          id: saleId,
+          total_amount: total,
+          payment_method: headerMethod,
+          notes: input.notes || null,
+          seller_id: sellerId,
+          client_uuid: input.client_uuid ?? null,
+          customer_id: input.customer_id ?? null,
+          store_id: storeId,
+          created_at: new Date().toISOString(),
+        },
+        (insertedItems ?? lines.map((l) => ({
+          sale_id: saleId,
+          product_id: l.product_id,
+          quantity: l.quantity,
+          unit_price: l.unit_price,
+          subtotal: l.subtotal,
+          item_description: l.item_description,
+        }))).map((row) => ({
+          id: 'id' in row && row.id ? String(row.id) : undefined,
+          sale_id: saleId,
+          product_id: row.product_id,
+          quantity: row.quantity,
+          unit_price: row.unit_price,
+          subtotal: row.subtotal,
+          item_description: row.item_description ?? null,
+        })),
+      )
+    } catch (err) {
+      console.warn('[createSale] local snapshot failed:', err)
+    }
   }
 
   return { saleId }

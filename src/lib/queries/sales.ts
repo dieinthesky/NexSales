@@ -95,38 +95,80 @@ export async function getSalesPaged(
   return getSalesPagedFromSupabase(params)
 }
 
-async function getSaleByIdFromSupabase(id: string): Promise<SaleWithItems | null> {
-  const supabase = await createClient()
+async function getSaleByIdFromSupabase(
+  id: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client?: any,
+): Promise<SaleWithItems | null> {
+  const supabase = client ?? (await createClient())
   const { data, error } = await supabase
     .from('sales')
     .select('*, sale_items(*, products(*)), customers(full_name)')
     .eq('id', id)
-    .single()
+    .maybeSingle()
 
-  if (error) return null
+  if (error || !data) return null
   return data as SaleWithItems
 }
 
 export async function getSaleById(id: string): Promise<SaleWithItems | null> {
-  // Electron online: prefer Supabase so detalhe/recibo não mostram venda já cancelada
-  // (ou omitem venda nova) enquanto o SQLite ainda não sincronizou.
+  // Desktop: service role enxerga a venda logo após o caixa (JWT fraco = 404 no recibo)
   if (isElectron()) {
+    try {
+      const { getAdminDataClient } = await import('@/lib/supabase/admin-data')
+      const admin = await getAdminDataClient()
+      const remote = await getSaleByIdFromSupabase(id, admin)
+      if (remote) return remote
+    } catch (err) {
+      console.warn('[electron] admin getSaleById failed:', err)
+    }
     try {
       const remote = await getSaleByIdFromSupabase(id)
       if (remote) return remote
     } catch (err) {
-      console.warn('[electron] Supabase getSaleById failed, trying SQLite:', err)
+      console.warn('[electron] user getSaleById failed:', err)
     }
     try {
       const { getSaleById: sqliteGet } = await import('@/lib/db/queries/sales')
       return sqliteGet(id)
     } catch (sqliteErr) {
-      console.warn('[electron] sqlite getSaleById also failed:', sqliteErr)
+      console.warn('[electron] sqlite getSaleById failed:', sqliteErr)
       return null
     }
   }
 
-  return getSaleByIdFromSupabase(id)
+  // Web: sessão do usuário; se falhar (timeout), tenta service role da loja
+  try {
+    const remote = await getSaleByIdFromSupabase(id)
+    if (remote) return remote
+  } catch {
+    // fall through
+  }
+
+  try {
+    const { getAdminDataClient, resolveAdminContext } = await import(
+      '@/lib/supabase/admin-data'
+    )
+    const { getCurrentUser } = await import('@/lib/auth/roles')
+    const user = await getCurrentUser()
+    if (!user) return null
+    const ctx = await resolveAdminContext(user)
+    const admin = await getAdminDataClient()
+    const remote = await getSaleByIdFromSupabase(id, admin)
+    if (!remote) return null
+    if (
+      user.role !== 'master' &&
+      ctx.storeId &&
+      remote.store_id &&
+      remote.store_id !== ctx.storeId &&
+      !ctx.storeIds.includes(remote.store_id)
+    ) {
+      return null
+    }
+    return remote
+  } catch {
+    return null
+  }
 }
 
 export async function getTopProducts(limit = 5) {
