@@ -9,6 +9,9 @@ import type { Database } from '@/types/database'
 /**
  * Prefer service role (works with offline desktop cookie). Falls back to
  * the user-scoped client when the secret is absent.
+ *
+ * @deprecated Prefira `getAppDataClient` / `getAppDataContext` de
+ * `@/lib/supabase/app-data` em código novo — aplica loja + timeout certo.
  */
 export async function getAdminDataClient(): Promise<SupabaseClient<Database>> {
   return tryCreateServiceClient() ?? (await createClient())

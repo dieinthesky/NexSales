@@ -1,6 +1,6 @@
 import 'server-only'
-import { createClient } from '@/lib/supabase/server'
 import { startOfMonth, endOfMonth, subDays, subMonths } from 'date-fns'
+import { applyStoreFilter, getAppDataContext } from '@/lib/supabase/app-data'
 
 export type DREPeriod = 'this-month' | 'last-month' | 'last-30' | 'last-90'
 
@@ -58,15 +58,19 @@ type SaleRow = {
 }
 
 export async function getDREReport(period: DREPeriod = 'this-month'): Promise<DREResult> {
-  const supabase = await createClient()
+  const ctx = await getAppDataContext()
   const { start, end } = periodRange(period)
 
-  const { data, error } = await supabase
+  let query = ctx.client
     .from('sales')
-    .select('id, total_amount, payment_method, sale_items(quantity, subtotal, products(cost_price, name))')
+    .select(
+      'id, total_amount, payment_method, sale_items(quantity, subtotal, products(cost_price, name))',
+    )
     .gte('created_at', start)
     .lte('created_at', end)
+  query = applyStoreFilter(query, ctx)
 
+  const { data, error } = await query
   if (error) throw new Error(error.message)
 
   const sales = (data ?? []) as SaleRow[]
@@ -74,7 +78,10 @@ export async function getDREReport(period: DREPeriod = 'this-month'): Promise<DR
   let revenue = 0
   let cost = 0
   const byPayment: Record<string, { revenue: number; count: number }> = {}
-  const productMap: Record<string, { name: string; revenue: number; cost: number; quantity: number }> = {}
+  const productMap: Record<
+    string,
+    { name: string; revenue: number; cost: number; quantity: number }
+  > = {}
 
   for (const sale of sales) {
     revenue += Number(sale.total_amount)
@@ -101,9 +108,12 @@ export async function getDREReport(period: DREPeriod = 'this-month'): Promise<DR
 
   const topProducts = Object.values(productMap)
     .map((p) => ({
-      ...p,
+      name: p.name,
+      revenue: p.revenue,
+      cost: p.cost,
       profit: p.revenue - p.cost,
       margin: p.revenue > 0 ? ((p.revenue - p.cost) / p.revenue) * 100 : 0,
+      quantity: p.quantity,
     }))
     .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 10)

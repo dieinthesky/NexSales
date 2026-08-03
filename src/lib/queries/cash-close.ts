@@ -3,6 +3,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { brDayRangeUTC, todayBRISO } from '@/lib/utils/datetime'
 import type { Database, PaymentMethod } from '@/types/database'
+import type { AppDataContext } from '@/lib/supabase/app-data'
 
 export interface PaymentBreakdown {
   method: PaymentMethod
@@ -28,17 +29,11 @@ export interface SaleRow {
 }
 
 export interface CashCloseSummary {
-  /** ISO date YYYY-MM-DD that was queried */
   date: string
-  /** Number of sales in the window */
   count: number
-  /** Sum of total_amount in the window */
   total: number
-  /** Average ticket = total / count, or 0 when count is 0 */
   averageTicket: number
-  /** Per-method aggregation, sorted by total desc */
   byPayment: PaymentBreakdown[]
-  /** Raw sales list, each with its items */
   sales: SaleRow[]
 }
 
@@ -61,33 +56,40 @@ interface RawSale {
   payment_method: string
   notes: string | null
   sale_items: RawSaleItem[] | null
+  sale_payments?: { payment_method: PaymentMethod; amount: number }[] | null
 }
 
 /**
- * Aggregate all sales for a single local-day window (00:00 → 23:59:59.999),
- * including each sale's line items (product, quantity, prices).
- *
- * Pass an explicit `client` (e.g. the service-role client) for contexts that
- * have no user session — like the daily-report cron. Defaults to the
- * cookie-based server client used by the cash-close page.
+ * Fechamento de caixa de um dia (BRT). No .exe usa getAppDataContext (service role).
  */
 export async function getCashClose(
   localDate: string,
   client?: SupabaseClient<Database>,
 ): Promise<CashCloseSummary> {
-  // localDate is the BRT calendar day the operator picked. Translate that
-  // into the UTC instants that bound the day in São Paulo so the query
-  // catches sales rung up after 21:00 local (which are already "tomorrow"
-  // in UTC).
   const { start, end } = brDayRangeUTC(localDate)
 
-  const supabase = client ?? (await createClient())
-
-  type RawSaleWithPays = RawSale & {
-    sale_payments?: { payment_method: PaymentMethod; amount: number }[] | null
+  if (client) {
+    return buildCashClose(localDate, start, end, client, null)
   }
 
-  const withPayments = await supabase
+  try {
+    const { getAppDataContext } = await import('@/lib/supabase/app-data')
+    const ctx = await getAppDataContext()
+    return buildCashClose(localDate, start, end, ctx.client, ctx)
+  } catch {
+    const supabase = await createClient()
+    return buildCashClose(localDate, start, end, supabase, null)
+  }
+}
+
+async function buildCashClose(
+  localDate: string,
+  start: string,
+  end: string,
+  supabase: SupabaseClient<Database>,
+  storeCtx: Pick<AppDataContext, 'mode' | 'storeId'> | null,
+): Promise<CashCloseSummary> {
+  let withPaymentsQ = supabase
     .from('sales')
     .select(
       'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name)), sale_payments(payment_method, amount)',
@@ -96,11 +98,15 @@ export async function getCashClose(
     .lte('created_at', end)
     .order('created_at', { ascending: true })
 
-  let rows: RawSaleWithPays[]
+  if (storeCtx?.mode === 'service' && storeCtx.storeId) {
+    withPaymentsQ = withPaymentsQ.eq('store_id', storeCtx.storeId)
+  }
+
+  const withPayments = await withPaymentsQ
+  let rows: RawSale[]
 
   if (withPayments.error?.message?.includes('sale_payments')) {
-    // Antes da migração sale_payments, cai no select antigo.
-    const legacy = await supabase
+    let legacyQ = supabase
       .from('sales')
       .select(
         'id, created_at, total_amount, payment_method, notes, sale_items(quantity, unit_price, subtotal, products(code, name))',
@@ -109,12 +115,17 @@ export async function getCashClose(
       .lte('created_at', end)
       .order('created_at', { ascending: true })
 
+    if (storeCtx?.mode === 'service' && storeCtx.storeId) {
+      legacyQ = legacyQ.eq('store_id', storeCtx.storeId)
+    }
+
+    const legacy = await legacyQ
     if (legacy.error) throw new Error(legacy.error.message)
-    rows = (legacy.data ?? []) as unknown as RawSaleWithPays[]
+    rows = (legacy.data ?? []) as unknown as RawSale[]
   } else if (withPayments.error) {
     throw new Error(withPayments.error.message)
   } else {
-    rows = (withPayments.data ?? []) as unknown as RawSaleWithPays[]
+    rows = (withPayments.data ?? []) as unknown as RawSale[]
   }
 
   const sales: SaleRow[] = rows.map((row) => ({
@@ -167,7 +178,6 @@ export async function getCashClose(
   return { date: localDate, count, total, averageTicket, byPayment, sales }
 }
 
-/** YYYY-MM-DD of "today" in São Paulo, regardless of where the code runs. */
 export function todayLocalISO(): string {
   return todayBRISO()
 }

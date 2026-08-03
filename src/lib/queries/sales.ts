@@ -1,12 +1,16 @@
 import 'server-only'
-import { createClient } from '@/lib/supabase/server'
 import { brDayRangeUTC } from '@/lib/utils/datetime'
 import type { PaymentMethod, Sale, SaleWithItems } from '@/types/database'
 import { isElectron } from '@/lib/db/client'
+import {
+  applyStoreFilter,
+  assertStoreAccess,
+  getAppDataContext,
+  withAppDataOrSqlite,
+} from '@/lib/supabase/app-data'
 
 export interface SalesListParams {
   payment?: PaymentMethod
-  /** Filtro de dia exato (YYYY-MM-DD em BRT). */
   day?: string
   page?: number
   pageSize?: number
@@ -22,26 +26,27 @@ export interface SalesListResult {
 
 const DEFAULT_PAGE_SIZE = 25
 
-async function getSalesPagedFromSupabase(
+async function getSalesPagedFromCloud(
   params: SalesListParams = {},
 ): Promise<SalesListResult> {
-  const supabase = await createClient()
+  const ctx = await getAppDataContext()
   const page = Math.max(1, params.page ?? 1)
   const pageSize = Math.max(1, Math.min(100, params.pageSize ?? DEFAULT_PAGE_SIZE))
 
-  // Master vê todas as lojas — oculta vendas do catálogo modelo (ruído de testes).
-  const { data: templates } = await supabase
+  const { data: templates } = await ctx.client
     .from('stores')
     .select('id')
     .eq('is_template', true)
   const templateIds = (templates ?? []).map((t) => t.id)
 
-  let query = supabase
+  let query = ctx.client
     .from('sales')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
 
-  if (templateIds.length > 0) {
+  query = applyStoreFilter(query, ctx)
+
+  if (templateIds.length > 0 && (ctx.role === 'master' || !ctx.storeId)) {
     query = query.not('store_id', 'in', `(${templateIds.join(',')})`)
   }
 
@@ -76,123 +81,94 @@ async function getSalesPagedFromSupabase(
 export async function getSalesPaged(
   params: SalesListParams = {},
 ): Promise<SalesListResult> {
-  // Electron online: prefer Supabase so Histórico não fica defasado se o pull SQLite falhar
-  if (isElectron()) {
-    try {
-      return await getSalesPagedFromSupabase(params)
-    } catch (err) {
-      console.warn('[electron] Supabase getSalesPaged failed, trying SQLite:', err)
-      try {
-        const { getSalesPaged: sqliteGet } = await import('@/lib/db/queries/sales')
-        return sqliteGet(params)
-      } catch (sqliteErr) {
-        console.warn('[electron] sqlite getSalesPaged also failed:', sqliteErr)
-        throw err
-      }
-    }
-  }
-
-  return getSalesPagedFromSupabase(params)
-}
-
-async function getSaleByIdFromSupabase(
-  id: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  client?: any,
-): Promise<SaleWithItems | null> {
-  const supabase = client ?? (await createClient())
-  const { data, error } = await supabase
-    .from('sales')
-    .select('*, sale_items(*, products(*)), customers(full_name)')
-    .eq('id', id)
-    .maybeSingle()
-
-  if (error || !data) return null
-  return data as SaleWithItems
+  return withAppDataOrSqlite(
+    () => getSalesPagedFromCloud(params),
+    async () => {
+      const { getSalesPaged: sqliteGet } = await import('@/lib/db/queries/sales')
+      return sqliteGet(params)
+    },
+  )
 }
 
 export async function getSaleById(id: string): Promise<SaleWithItems | null> {
-  // Desktop: service role enxerga a venda logo após o caixa (JWT fraco = 404 no recibo)
+  try {
+    const ctx = await getAppDataContext()
+    const { data, error } = await ctx.client
+      .from('sales')
+      .select('*, sale_items(*, products(*)), customers(full_name)')
+      .eq('id', id)
+      .maybeSingle()
+
+    if (!error && data) {
+      const sale = data as SaleWithItems
+      if (!assertStoreAccess(ctx, sale.store_id)) return null
+      return sale
+    }
+  } catch (err) {
+    console.warn('[getSaleById] app-data failed:', err)
+  }
+
   if (isElectron()) {
-    try {
-      const { getAdminDataClient } = await import('@/lib/supabase/admin-data')
-      const admin = await getAdminDataClient()
-      const remote = await getSaleByIdFromSupabase(id, admin)
-      if (remote) return remote
-    } catch (err) {
-      console.warn('[electron] admin getSaleById failed:', err)
-    }
-    try {
-      const remote = await getSaleByIdFromSupabase(id)
-      if (remote) return remote
-    } catch (err) {
-      console.warn('[electron] user getSaleById failed:', err)
-    }
     try {
       const { getSaleById: sqliteGet } = await import('@/lib/db/queries/sales')
       return sqliteGet(id)
-    } catch (sqliteErr) {
-      console.warn('[electron] sqlite getSaleById failed:', sqliteErr)
+    } catch {
       return null
     }
   }
 
-  // Web: sessão do usuário; se falhar (timeout), tenta service role da loja
-  try {
-    const remote = await getSaleByIdFromSupabase(id)
-    if (remote) return remote
-  } catch {
-    // fall through
-  }
-
-  try {
-    const { getAdminDataClient, resolveAdminContext } = await import(
-      '@/lib/supabase/admin-data'
-    )
-    const { getCurrentUser } = await import('@/lib/auth/roles')
-    const user = await getCurrentUser()
-    if (!user) return null
-    const ctx = await resolveAdminContext(user)
-    const admin = await getAdminDataClient()
-    const remote = await getSaleByIdFromSupabase(id, admin)
-    if (!remote) return null
-    if (
-      user.role !== 'master' &&
-      ctx.storeId &&
-      remote.store_id &&
-      remote.store_id !== ctx.storeId &&
-      !ctx.storeIds.includes(remote.store_id)
-    ) {
-      return null
-    }
-    return remote
-  } catch {
-    return null
-  }
+  return null
 }
 
 export async function getTopProducts(limit = 5) {
-  if (isElectron()) {
-    const { getTopProducts: sqliteGet } = await import('@/lib/db/queries/sales')
-    return sqliteGet(limit)
-  }
+  return withAppDataOrSqlite(
+    async () => {
+      const ctx = await getAppDataContext()
+      let query = ctx.client
+        .from('sale_items')
+        .select('product_id, quantity, products(name, code), sales!inner(store_id)')
+        .limit(500)
 
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('sale_items')
-    .select('product_id, quantity, products(name, code)')
-    .limit(500)
+      // filtro por loja nos itens via join sales quando service role
+      if (ctx.mode === 'service' && ctx.storeId) {
+        query = query.eq('sales.store_id', ctx.storeId)
+      }
 
-  if (error) throw new Error(error.message)
+      const { data, error } = await query
+      if (error) {
+        // fallback sem join se o schema do join falhar
+        const simple = await ctx.client
+          .from('sale_items')
+          .select('product_id, quantity, products(name, code)')
+          .limit(500)
+        if (simple.error) throw new Error(simple.error.message)
+        return aggregateTop(simple.data ?? [], limit)
+      }
+      return aggregateTop(data ?? [], limit)
+    },
+    async () => {
+      const { getTopProducts: sqliteGet } = await import('@/lib/db/queries/sales')
+      return sqliteGet(limit)
+    },
+  )
+}
 
+function aggregateTop(
+  data: Array<{
+    product_id: string
+    quantity: number
+    products: { name: string; code: string } | null
+  }>,
+  limit: number,
+) {
   const totals: Record<string, { name: string; code: string; total: number }> = {}
 
-  for (const item of data ?? []) {
+  for (const item of data) {
     const pid = item.product_id
     if (!totals[pid]) {
       totals[pid] = {
-        name: (item.products as { name: string; code: string })?.name ?? '',
-        code: (item.products as { name: string; code: string })?.code ?? '',
+        name: item.products?.name ?? '',
+        code: item.products?.code ?? '',
         total: 0,
       }
     }

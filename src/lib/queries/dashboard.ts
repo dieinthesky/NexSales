@@ -1,39 +1,51 @@
 import 'server-only'
-import { createClient } from '@/lib/supabase/server'
 import type { Sale } from '@/types/database'
 import { startOfMonth, endOfMonth, subDays } from 'date-fns'
 import { brDayRangeUTC, formatBRDayMonth, todayBRISO } from '@/lib/utils/datetime'
-import { isElectron } from '@/lib/db/client'
+import {
+  applyStoreFilter,
+  getAppDataContext,
+  withAppDataOrSqlite,
+} from '@/lib/supabase/app-data'
 
-async function getDashboardMetricsFromSupabase() {
-  const supabase = await createClient()
+async function getDashboardMetricsFromCloud() {
+  const ctx = await getAppDataContext()
   const now = new Date()
   const today = brDayRangeUTC(todayBRISO())
 
+  let qToday = ctx.client
+    .from('sales')
+    .select('total_amount')
+    .gte('created_at', today.start)
+    .lte('created_at', today.end)
+  qToday = applyStoreFilter(qToday, ctx)
+
+  let qMonth = ctx.client
+    .from('sales')
+    .select('total_amount')
+    .gte('created_at', startOfMonth(now).toISOString())
+    .lte('created_at', endOfMonth(now).toISOString())
+  qMonth = applyStoreFilter(qMonth, ctx)
+
+  let qProducts = ctx.client
+    .from('products')
+    .select('stock_quantity, min_stock, track_stock')
+    .eq('is_active', true)
+    .eq('track_stock', true)
+  qProducts = applyStoreFilter(qProducts, ctx)
+
+  let qRecent = ctx.client
+    .from('sales')
+    .select('id, total_amount, payment_method, created_at')
+    .order('created_at', { ascending: false })
+    .limit(10)
+  qRecent = applyStoreFilter(qRecent, ctx)
+
   const [todaySales, monthSales, allProducts, recentSales] = await Promise.all([
-    supabase
-      .from('sales')
-      .select('total_amount')
-      .gte('created_at', today.start)
-      .lte('created_at', today.end),
-
-    supabase
-      .from('sales')
-      .select('total_amount')
-      .gte('created_at', startOfMonth(now).toISOString())
-      .lte('created_at', endOfMonth(now).toISOString()),
-
-    supabase
-      .from('products')
-      .select('stock_quantity, min_stock, track_stock')
-      .eq('is_active', true)
-      .eq('track_stock', true),
-
-    supabase
-      .from('sales')
-      .select('id, total_amount, payment_method, created_at')
-      .order('created_at', { ascending: false })
-      .limit(10),
+    qToday,
+    qMonth,
+    qProducts,
+    qRecent,
   ])
 
   const todayTotal = (todaySales.data ?? []).reduce((s, r) => s + Number(r.total_amount), 0)
@@ -42,7 +54,7 @@ async function getDashboardMetricsFromSupabase() {
   const monthCount = monthSales.data?.length ?? 0
   const avgTicket = monthCount > 0 ? monthTotal / monthCount : 0
   const lowStockCount = (allProducts.data ?? []).filter(
-    (p) => p.stock_quantity <= p.min_stock
+    (p) => p.stock_quantity <= p.min_stock,
   ).length
 
   return {
@@ -57,37 +69,25 @@ async function getDashboardMetricsFromSupabase() {
 }
 
 export async function getDashboardMetrics() {
-  // Electron online: prefer Supabase so totais não incluem vendas já canceladas
-  // enquanto o deleteLocalSale/pull ainda não rodou.
-  if (isElectron()) {
-    try {
-      return await getDashboardMetricsFromSupabase()
-    } catch (err) {
-      console.warn('[electron] Supabase getDashboardMetrics failed, trying SQLite:', err)
-      try {
-        const { getDashboardMetrics: sqliteGet } = await import('@/lib/db/queries/dashboard')
-        return sqliteGet()
-      } catch (sqliteErr) {
-        console.warn('[electron] sqlite getDashboardMetrics also failed:', sqliteErr)
-        throw err
-      }
-    }
-  }
-
-  return getDashboardMetricsFromSupabase()
+  return withAppDataOrSqlite(getDashboardMetricsFromCloud, async () => {
+    const { getDashboardMetrics: sqliteGet } = await import('@/lib/db/queries/dashboard')
+    return sqliteGet()
+  })
 }
 
-async function getSalesLast30DaysFromSupabase() {
-  const supabase = await createClient()
+async function getSalesLast30DaysFromCloud() {
+  const ctx = await getAppDataContext()
   const now = new Date()
   const from = subDays(now, 29)
 
-  const { data, error } = await supabase
+  let query = ctx.client
     .from('sales')
     .select('total_amount, created_at')
     .gte('created_at', from.toISOString())
     .order('created_at')
+  query = applyStoreFilter(query, ctx)
 
+  const { data, error } = await query
   if (error) throw new Error(error.message)
 
   const byDay: Record<string, number> = {}
@@ -107,20 +107,8 @@ async function getSalesLast30DaysFromSupabase() {
 }
 
 export async function getSalesLast30Days() {
-  if (isElectron()) {
-    try {
-      return await getSalesLast30DaysFromSupabase()
-    } catch (err) {
-      console.warn('[electron] Supabase getSalesLast30Days failed, trying SQLite:', err)
-      try {
-        const { getSalesLast30Days: sqliteGet } = await import('@/lib/db/queries/dashboard')
-        return sqliteGet()
-      } catch (sqliteErr) {
-        console.warn('[electron] sqlite getSalesLast30Days also failed:', sqliteErr)
-        throw err
-      }
-    }
-  }
-
-  return getSalesLast30DaysFromSupabase()
+  return withAppDataOrSqlite(getSalesLast30DaysFromCloud, async () => {
+    const { getSalesLast30Days: sqliteGet } = await import('@/lib/db/queries/dashboard')
+    return sqliteGet()
+  })
 }

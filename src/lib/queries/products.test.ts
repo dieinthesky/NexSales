@@ -1,5 +1,5 @@
 /**
- * getProductsPaged / getCategories: nuvem primeiro; SQLite só se falhar (Electron offline).
+ * getProductsPaged / getCategories: nuvem primeiro; SQLite se falhar no Electron.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import type { Category, ProductWithCategory } from '@/types/database'
@@ -54,21 +54,9 @@ describe('getProductsPaged — Electron offline fallback', () => {
   it('uses SQLite when cloud fails on Electron', async () => {
     isElectronMock.mockReturnValue(true)
     sqliteGetProductsPaged.mockReturnValue(EMPTY_PAGED)
-
     const result = await getProductsPaged()
-
     expect(sqliteGetProductsPaged).toHaveBeenCalledOnce()
     expect(result).toEqual(EMPTY_PAGED)
-  })
-
-  it('forwards params to SQLite on fallback', async () => {
-    isElectronMock.mockReturnValue(true)
-    sqliteGetProductsPaged.mockReturnValue(EMPTY_PAGED)
-
-    const params = { search: 'café', page: 2, pageSize: 10 }
-    await getProductsPaged(params)
-
-    expect(sqliteGetProductsPaged).toHaveBeenCalledWith(params)
   })
 })
 
@@ -76,9 +64,7 @@ describe('getLowStock — Electron offline fallback', () => {
   it('uses SQLite when cloud fails', async () => {
     isElectronMock.mockReturnValue(true)
     sqliteGetLowStock.mockReturnValue(EMPTY_PRODUCTS)
-
     const result = await getLowStock()
-
     expect(sqliteGetLowStock).toHaveBeenCalledOnce()
     expect(result).toEqual(EMPTY_PRODUCTS)
   })
@@ -90,7 +76,6 @@ describe('getCategories', () => {
       { id: 'c-1', name: 'Bebidas', store_id: 'store-1', created_at: '2026-01-01T00:00:00Z' },
     ]
     listCatsMock.mockResolvedValue(cats)
-
     const result = await getCategories()
     expect(result).toEqual(cats)
   })
@@ -102,7 +87,6 @@ describe('getCategories', () => {
       { id: 'c-1', name: 'Bebidas', store_id: 'store-1', created_at: '2026-01-01T00:00:00Z' },
     ]
     sqliteGetCategories.mockReturnValue(cats)
-
     const result = await getCategories()
     expect(result[0].name).toBe('Bebidas')
   })

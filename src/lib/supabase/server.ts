@@ -3,28 +3,30 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from '@/types/database'
 
-// Must be lower than tryQuery's default (5000ms) so the SQLite offline fallback
-// in each query function has time to run before tryQuery gives up entirely.
+// Web: curto para o tryQuery + fallback SQLite no desktop offline não travar a UI
 const QUERY_TIMEOUT_MS = 3_000
 
-// Longer timeout for the sync operation: it runs 5+ parallel Supabase fetches
-// and must complete before the 3s page-level timeout fires.
+// Desktop (.exe) e sync: token fraco + latência normal — 3s causava falso offline
+const ELECTRON_TIMEOUT_MS = 25_000
 const SYNC_TIMEOUT_MS = 30_000
 
-/**
- * Creates a Supabase server client whose fetch calls are automatically aborted
- * after QUERY_TIMEOUT_MS. This prevents offline/unreachable-Supabase scenarios
- * from accumulating hanging connections in the Node.js event loop (which causes
- * the blank-screen crash in Electron after multiple offline navigations).
- *
- * The AbortError propagates out of query functions → caught by tryQuery() → returns fallback.
- */
-export async function createSyncClient() {
-  return _makeClient(SYNC_TIMEOUT_MS)
+function isElectronServer(): boolean {
+  return process.env.ELECTRON_APP === 'true'
 }
 
+/**
+ * Sync / operações pesadas (venda, pull completo).
+ */
+export async function createSyncClient() {
+  return _makeClient(isElectronServer() ? ELECTRON_TIMEOUT_MS : SYNC_TIMEOUT_MS)
+}
+
+/**
+ * Client padrão de páginas. No Electron usa o timeout longo para parar de
+ * abortar listagens e recibos a cada 3s.
+ */
 export async function createClient() {
-  return _makeClient(QUERY_TIMEOUT_MS)
+  return _makeClient(isElectronServer() ? ELECTRON_TIMEOUT_MS : QUERY_TIMEOUT_MS)
 }
 
 async function _makeClient(timeoutMs: number) {
@@ -47,14 +49,13 @@ async function _makeClient(timeoutMs: number) {
         setAll(cookiesToSet) {
           try {
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, options),
             )
           } catch {
             // Server Component context — cookies set by middleware
           }
         },
       },
-    }
+    },
   )
 }
-
