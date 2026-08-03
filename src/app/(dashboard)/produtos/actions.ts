@@ -795,6 +795,14 @@ export async function createProductFromVisit(input: {
     return { error: parsed.error.issues[0].message }
   }
 
+  const user = await getCurrentUser()
+  if (!user?.storeId) {
+    return { error: 'Sua conta não está vinculada a uma loja.' }
+  }
+
+  const supabase = await createClient()
+  const imageUrl = input.image_url?.trim() || null
+
   const { data, error } = await supabase
     .from('products')
     .insert({
