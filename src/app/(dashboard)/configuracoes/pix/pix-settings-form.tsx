@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card } from '@/components/ui/card'
-import { saveStorePixSettings, type StorePixForm } from './actions'
+import { saveStorePixSettings } from './actions'
+import type { StorePixForm } from '@/lib/store-pix'
 
 interface PixSettingsFormProps {
   initial: StorePixForm
