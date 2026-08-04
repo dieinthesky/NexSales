@@ -14,7 +14,6 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { ProductActions } from '@/components/products/product-actions'
 import { EnrichCatalogButton } from '@/components/products/enrich-catalog-button'
-import { ApplySheetNamesButton } from '@/components/products/apply-sheet-names-button'
 import { getCategories, getProductsPaged, getInventoryValuation, type StockFilter } from '@/lib/queries/products'
 import { formatCurrency } from '@/lib/utils/format'
 import { requireAdmin } from '@/lib/auth/roles'
@@ -139,7 +138,6 @@ export default async function ProdutosPage({
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-start">
-          <ApplySheetNamesButton auto />
           <EnrichCatalogButton />
           <Button asChild className="bg-primary hover:bg-primary/90 text-white shadow-sm">
             <Link href="/produtos/novo">

@@ -1104,9 +1104,17 @@ export interface SheetNameApplyResult {
   message?: string
 }
 
+type SheetFix = {
+  name: string
+  category: string | null
+  oldName: string | null
+  codes: string[]
+}
+
 /**
- * Aplica nomes/categorias da planilha embutida (produtos_corrigidos.xlsx)
- * filtrando só os identificados — por código de barras, na loja atual.
+ * Aplica nomes/categorias da planilha embutida.
+ * Casa por: código de barras, códigos alternativos (EAN errado na planilha)
+ * ou nome antigo (ex.: "herbissimo" → "Desodorante Herbíssimo").
  */
 export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameApplyResult> {
   const empty: SheetNameApplyResult = {
@@ -1135,23 +1143,39 @@ export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameA
     const corrections = (
       await import('@/data/product-name-corrections.json')
     ).default as Array<{
-      code: string
+      code?: string | null
+      altCodes?: string[]
+      oldName?: string | null
       name: string
       category: string | null
     }>
 
     const admin = await getAdminDataClient()
-    const byCode = new Map<string, { name: string; category: string | null }>()
+
+    const byCode = new Map<string, SheetFix>()
+    const byOldName = new Map<string, SheetFix>()
+
     for (const row of corrections) {
-      const code = String(row.code ?? '').replace(/\D/g, '')
-      if (!code || !row.name?.trim()) continue
-      byCode.set(code, {
+      if (!row.name?.trim()) continue
+      const codes = new Set<string>()
+      const main = String(row.code ?? '').replace(/\D/g, '')
+      if (main) codes.add(main)
+      for (const a of row.altCodes ?? []) {
+        const d = String(a).replace(/\D/g, '')
+        if (d) codes.add(d)
+      }
+      const fix: SheetFix = {
         name: row.name.trim(),
         category: row.category?.trim() || null,
-      })
+        oldName: row.oldName?.trim() || null,
+        codes: [...codes],
+      }
+      for (const c of fix.codes) byCode.set(c, fix)
+      if (fix.oldName) {
+        byOldName.set(fix.oldName.toLowerCase(), fix)
+      }
     }
 
-    // Categorias usadas na planilha + padrão
     const catNames = new Set<string>([
       'Alimentos',
       'Bebidas',
@@ -1192,7 +1216,6 @@ export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameA
     let matched = 0
     let updated = 0
     const samples: SheetNameApplyResult['samples'] = []
-    const codesInSheet = new Set(byCode.keys())
     const codesInStore = new Set<string>()
 
     for (const product of products ?? []) {
@@ -1200,9 +1223,13 @@ export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameA
         continue
       }
       const code = String(product.code ?? '').replace(/\D/g, '')
-      if (!code) continue
-      codesInStore.add(code)
-      const fix = byCode.get(code)
+      if (code) codesInStore.add(code)
+
+      // 1) EAN exact / alt  2) nome antigo da planilha
+      let fix =
+        (code ? byCode.get(code) : undefined) ??
+        byOldName.get(product.name.trim().toLowerCase())
+
       if (!fix) continue
       matched++
 
@@ -1234,7 +1261,7 @@ export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameA
       updated++
       if (samples.length < 12) {
         samples.push({
-          code,
+          code: code || product.code || '',
           oldName: product.name,
           newName: fix.name,
           category: fix.category,
@@ -1243,7 +1270,7 @@ export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameA
     }
 
     let missingInStore = 0
-    for (const code of codesInSheet) {
+    for (const code of byCode.keys()) {
       if (!codesInStore.has(code)) missingInStore++
     }
 
@@ -1263,7 +1290,7 @@ export async function applyProductNameCorrectionsFromSheet(): Promise<SheetNameA
           ? `${updated} produtos atualizados com a planilha.`
           : matched > 0
             ? 'Nomes da planilha já estavam aplicados nesta loja.'
-            : 'Nenhum código da planilha bateu com produtos desta loja.',
+            : 'Nenhum item da planilha bateu (nem por código nem por nome antigo).',
     }
   } catch (e) {
     return {

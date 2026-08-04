@@ -3,43 +3,75 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Loader2, Sparkles } from 'lucide-react'
+import { FileSpreadsheet, Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { enrichProductsByBarcodeBatch } from '@/app/(dashboard)/produtos/actions'
+import {
+  applyProductNameCorrectionsFromSheet,
+  enrichProductsByBarcodeBatch,
+} from '@/app/(dashboard)/produtos/actions'
 
 /**
- * Roda a mega-pesquisa em lotes (5 produtos/request) até acabar.
- * Atualiza nome e categoria a partir do código de barras.
+ * 1) Aplica a planilha de nomes (embutida)
+ * 2) Opcional: pesquisa online o que sobrar
  */
 export function EnrichCatalogButton() {
   const router = useRouter()
   const [running, setRunning] = useState(false)
   const [progress, setProgress] = useState<string | null>(null)
 
-  async function handleRun() {
+  async function applySheetOnly() {
+    if (running) return
+    setRunning(true)
+    setProgress('Aplicando planilha de nomes…')
+    try {
+      const sheet = await applyProductNameCorrectionsFromSheet()
+      if (sheet.updated > 0) {
+        toast.success(
+          `${sheet.updated} nomes da planilha aplicados` +
+            (sheet.samples[0]
+              ? ` · ex.: ${sheet.samples[0].oldName} → ${sheet.samples[0].newName}`
+              : ''),
+        )
+      } else {
+        toast.message(sheet.message ?? 'Nada a alterar na planilha')
+      }
+      router.refresh()
+    } catch {
+      toast.error('Falha ao aplicar a planilha.')
+    } finally {
+      setRunning(false)
+      setProgress(null)
+    }
+  }
+
+  async function handleOnlineEnrich() {
     if (running) return
     const ok = window.confirm(
-      'Isso vai pesquisar cada código de barras online e trocar nomes/categorias ' +
-        'pelo que achar nas bases (Cosmos, Open Food Facts…).\n\n' +
-        'Preço de venda, custo e estoque NÃO mudam.\n\n' +
-        'Pode levar alguns minutos nos ~300 produtos. Continuar?',
+      '1) Aplica primeiro a planilha de nomes.\n' +
+        '2) Depois pesquisa online o que sobrar (Cosmos / bases abertas).\n\n' +
+        'Preço, custo e estoque NÃO mudam. Continuar?',
     )
     if (!ok) return
 
     setRunning(true)
-    let offset = 0
-    let totalUpdated = 0
-    let totalNotFound = 0
-    let totalSkipped = 0
-    let totalErrors = 0
-    let totalEligible = 0
-
     try {
-      // eslint-disable-next-line no-constant-condition
+      setProgress('1/2 Planilha…')
+      const sheet = await applyProductNameCorrectionsFromSheet()
+      if (sheet.updated > 0) {
+        toast.success(`${sheet.updated} da planilha aplicados`)
+      }
+
+      let offset = 0
+      let totalUpdated = 0
+      let totalNotFound = 0
+      let totalSkipped = 0
+      let totalErrors = 0
+      let totalEligible = 0
+
       while (true) {
         const batch = await enrichProductsByBarcodeBatch(offset)
         if (batch.message && batch.totalEligible === 0 && batch.done) {
-          toast.error(batch.message)
+          if (sheet.updated === 0) toast.error(batch.message)
           break
         }
 
@@ -55,31 +87,23 @@ export function EnrichCatalogButton() {
             ? Math.min(100, Math.round((offset / totalEligible) * 100))
             : 100
         setProgress(
-          `${pct}% · ${offset}/${totalEligible} códigos · ${totalUpdated} atualizados`,
+          `2/2 Online ${pct}% · ${offset}/${totalEligible} · ${totalUpdated} atualizados`,
         )
 
-        if (batch.samples[0]) {
-          const s = batch.samples[0]
-          toast.message(`${s.oldName} → ${s.newName}`, {
-            description: s.category ? `Categoria: ${s.category}` : undefined,
-            duration: 2500,
-          })
-        }
-
         if (batch.done) break
-        // Respiro entre lotes (rate limit das APIs)
         await new Promise((r) => setTimeout(r, 400))
       }
 
       toast.success(
-        `Pronto: ${totalUpdated} nomes atualizados` +
-          (totalNotFound ? ` · ${totalNotFound} sem resultado na base` : '') +
-          (totalSkipped ? ` · ${totalSkipped} já ok` : '') +
-          (totalErrors ? ` · ${totalErrors} erros` : ''),
+        `Online: ${totalUpdated} nomes` +
+          (totalNotFound ? ` · ${totalNotFound} sem base` : '') +
+          (totalSkipped ? ` · ${totalSkipped} ok` : '') +
+          (totalErrors ? ` · ${totalErrors} erros` : '') +
+          (sheet.updated ? ` · planilha: ${sheet.updated}` : ''),
       )
       router.refresh()
     } catch {
-      toast.error('Falha no meio da pesquisa. Tente de novo — retoma do ponto atual não, refaz do início.')
+      toast.error('Falha no meio da correção. Tente de novo.')
     } finally {
       setRunning(false)
       setProgress(null)
@@ -87,21 +111,36 @@ export function EnrichCatalogButton() {
   }
 
   return (
-    <div className="flex flex-col items-stretch sm:items-end gap-1">
-      <Button
-        type="button"
-        variant="outline"
-        disabled={running}
-        onClick={() => void handleRun()}
-        className="border-slate-200 dark:border-white/10 dark:text-slate-200"
-      >
-        {running ? (
-          <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-        ) : (
-          <Sparkles className="mr-1.5 h-4 w-4" />
-        )}
-        {running ? 'Pesquisando…' : 'Corrigir nomes pelo código'}
-      </Button>
+    <div className="flex flex-col items-stretch gap-2 sm:items-end">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+        <Button
+          type="button"
+          disabled={running}
+          onClick={() => void applySheetOnly()}
+          className="bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm"
+        >
+          {running && progress?.startsWith('Aplicando') ? (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+          ) : (
+            <FileSpreadsheet className="mr-1.5 h-4 w-4" />
+          )}
+          Aplicar planilha de nomes
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={running}
+          onClick={() => void handleOnlineEnrich()}
+          className="border-slate-200 dark:border-white/10 dark:text-slate-200"
+        >
+          {running && progress?.startsWith('2/') ? (
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-1.5 h-4 w-4" />
+          )}
+          Planilha + pesquisa online
+        </Button>
+      </div>
       {progress && (
         <p className="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
           {progress}
